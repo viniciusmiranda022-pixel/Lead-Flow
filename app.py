@@ -320,7 +320,7 @@ def render_lead_card(row) -> None:
         unsafe_allow_html=True,
     )
 
-    controls = st.columns([2.7, 1])
+    controls = st.columns([2.2, 1.2])
     with controls[0]:
         status_key = f"stage_quick_{row['id']}"
         current_display = to_display_stage(row["stage"])
@@ -355,33 +355,31 @@ def render_lead_card(row) -> None:
                 st.rerun()
 
     with controls[1]:
-        with st.popover("⋯", use_container_width=True):
-            if st.button("Editar", key=f"edit_{row['id']}", use_container_width=True):
-                st.session_state.edit_lead_id = row["id"]
-                st.rerun()
+        c1, c2 = st.columns(2)
+        if c1.button("Editar", key=f"edit_{row['id']}", use_container_width=True):
+            st.session_state.edit_lead_id = row["id"]
+            st.rerun()
 
-            if st.session_state.pending_delete_id == row["id"]:
-                st.error("Confirmar exclusão deste lead?")
-                c1, c2 = st.columns(2)
-                if c1.button("Excluir", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
-                    db.delete_lead(row["id"])
-                    if st.session_state.edit_lead_id == row["id"]:
-                        reset_edit_mode()
-                    st.session_state.pending_delete_id = None
-                    st.success("Lead excluído.")
-                    st.rerun()
-                if c2.button("Cancelar", key=f"delete_cancel_{row['id']}", use_container_width=True):
-                    st.session_state.pending_delete_id = None
-                    st.rerun()
-            else:
-                if st.button("Excluir", key=f"delete_init_{row['id']}", use_container_width=True):
-                    st.session_state.pending_delete_id = row["id"]
-                    st.rerun()
+        if st.session_state.pending_delete_id == row["id"]:
+            if c2.button("Confirmar", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
+                db.delete_lead(row["id"])
+                if st.session_state.edit_lead_id == row["id"]:
+                    reset_edit_mode()
+                st.session_state.pending_delete_id = None
+                st.success("Lead excluído.")
+                st.rerun()
+            if st.button("Cancelar exclusão", key=f"delete_cancel_{row['id']}", use_container_width=True):
+                st.session_state.pending_delete_id = None
+                st.rerun()
+        else:
+            if c2.button("Excluir", key=f"delete_init_{row['id']}", use_container_width=True):
+                st.session_state.pending_delete_id = row["id"]
+                st.rerun()
 
 
 def render_leads_screen() -> None:
     st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
-    toolbar = st.columns([3.2, 1.2, 1.2, 1.3, 1.3])
+    toolbar = st.columns([3.4, 1.1])
 
     with toolbar[0]:
         st.markdown('<div class="lead-search-large">', unsafe_allow_html=True)
@@ -393,14 +391,57 @@ def render_leads_screen() -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     with toolbar[1]:
-        stage_filter_display = st.selectbox("Status", ["Todos"] + DISPLAY_STAGES, label_visibility="collapsed")
-    with toolbar[2]:
-        interest_filter = st.selectbox("Interesse", ["Todos"] + db.get_interest_options(), label_visibility="collapsed")
-    with toolbar[3]:
-        sort_by = st.selectbox("Ordenar", ["Atualizados recentemente", "Nome da empresa"], label_visibility="collapsed")
-    with toolbar[4]:
         if st.button("+ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
+
+    st.markdown("#### Filtros")
+    stage_options = ["Todos"] + DISPLAY_STAGES
+    if hasattr(st, "pills"):
+        stage_filter_display = st.pills(
+            "Status",
+            stage_options,
+            default="Todos",
+            selection_mode="single",
+        )
+    else:
+        stage_filter_display = st.segmented_control(
+            "Status",
+            stage_options,
+            default="Todos",
+            selection_mode="single",
+        )
+
+    interest_options = ["Todos"] + db.get_interest_options()
+    if hasattr(st, "pills"):
+        interest_filter = st.pills(
+            "Interesse",
+            interest_options,
+            default="Todos",
+            selection_mode="single",
+        )
+    else:
+        interest_filter = st.segmented_control(
+            "Interesse",
+            interest_options,
+            default="Todos",
+            selection_mode="single",
+        )
+
+    sort_options = ["Atualizados recentemente", "Nome da empresa"]
+    if hasattr(st, "pills"):
+        sort_by = st.pills(
+            "Ordenar",
+            sort_options,
+            default="Atualizados recentemente",
+            selection_mode="single",
+        )
+    else:
+        sort_by = st.segmented_control(
+            "Ordenar",
+            sort_options,
+            default="Atualizados recentemente",
+            selection_mode="single",
+        )
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
