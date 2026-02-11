@@ -55,7 +55,7 @@ def apply_global_styles() -> None:
             }
 
             .block-container {
-                max-width: 1200px;
+                max-width: 1280px;
                 padding-top: var(--space-4);
                 padding-bottom: calc(var(--space-4) + var(--space-3));
                 gap: var(--space-3);
@@ -95,6 +95,7 @@ def apply_global_styles() -> None:
                 margin-bottom: var(--space-3);
             }
 
+ codex/redesign-ux/ui-for-leadflow
             div[data-testid="stSegmentedControl"] {
                 display: flex;
                 justify-content: flex-end;
@@ -118,7 +119,33 @@ def apply_global_styles() -> None:
                 background: #DBEAFE;
                 box-shadow: inset 0 0 0 1px #BFDBFE;
                 color: #1E3A8A !important;
+
+            .lf-nav-wrap {
+                display: flex;
+                justify-content: end;
+            }
+
+            [data-testid="stSegmentedControl"]:has(button[data-baseweb="button"][id*="header_nav"]) {
+                max-width: 260px;
+                margin-left: auto;
+            }
+
+            [data-testid="stSegmentedControl"]:has(button[data-baseweb="button"][id*="header_nav"]) button {
+                border-radius: 999px !important;
+                border: 1px solid var(--line) !important;
+                background: var(--surface) !important;
+ main
                 font-weight: 700 !important;
+                font-size: 0.84rem !important;
+                min-height: 36px;
+                transition: all 0.18s ease;
+            }
+
+            [data-testid="stSegmentedControl"]:has(button[data-baseweb="button"][id*="header_nav"]) button[aria-pressed="true"] {
+                border-color: var(--primary) !important;
+                background: #DBEAFE !important;
+                color: #1E3A8A !important;
+                box-shadow: inset 0 0 0 1px #BFDBFE;
             }
 
             .filter-chip-wrap {
@@ -155,7 +182,11 @@ def apply_global_styles() -> None:
             }
             .metric-card:hover {
                 transform: translateY(-2px);
+ codex/redesign-ux/ui-for-leadflow
                 box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+
+                box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+ main
             }
             .metric-head { display: flex; align-items: center; gap: var(--space-1); }
             .metric-icon {
@@ -195,7 +226,11 @@ def apply_global_styles() -> None:
             }
             .chart-card:hover {
                 transform: translateY(-2px);
+ codex/redesign-ux/ui-for-leadflow
                 box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+
+                box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+ main
             }
             .chart-title {
                 font-size: 0.88rem;
@@ -272,7 +307,11 @@ def apply_global_styles() -> None:
             }
             .lead-card:hover {
                 transform: translateY(-2px);
+ codex/redesign-ux/ui-for-leadflow
                 box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+
+                box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+ main
             }
             .lead-row-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
             .lead-company { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); }
@@ -368,7 +407,11 @@ def apply_global_styles() -> None:
             @media (max-width: 640px) {
                 div[data-testid="column"] { min-width: 100% !important; flex: 1 1 100% !important; }
                 div[data-testid="stHorizontalBlock"]:has(.lf-header-row) { top: var(--space-1); }
+ codex/redesign-ux/ui-for-leadflow
                 div[data-testid="stSegmentedControl"] { justify-content: start; }
+
+                .lf-nav-wrap { justify-content: start; }
+ main
             }
         </style>
         """,
@@ -392,6 +435,7 @@ def render_top_header(current_screen: str) -> str:
             unsafe_allow_html=True,
         )
     with right:
+ codex/redesign-ux/ui-for-leadflow
         screen = st.segmented_control(
             "Navegação",
             ["Dashboard", "Leads"],
@@ -400,6 +444,31 @@ def render_top_header(current_screen: str) -> str:
             label_visibility="collapsed",
             key="top_nav_segmented",
         )
+
+        st.markdown('<div class="lf-nav-wrap">', unsafe_allow_html=True)
+        if hasattr(st, "segmented_control"):
+            screen = st.segmented_control(
+                "Navegação",
+                ["Dashboard", "Leads"],
+                selection_mode="single",
+                default=current_screen,
+                key="header_nav",
+                label_visibility="collapsed",
+            )
+        else:
+            first_col, second_col = st.columns(2)
+            with first_col:
+                if st.button("Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
+                    screen = "Dashboard"
+                else:
+                    screen = current_screen
+            with second_col:
+                if st.button("Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
+                    screen = "Leads"
+        st.markdown("</div>", unsafe_allow_html=True)
+    if not screen:
+        return current_screen
+ main
     return screen
 
 
