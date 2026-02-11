@@ -1,23 +1,27 @@
 # Lead Flow (App local de gestão de leads)
 
-Aplicativo local simples para gestão de leads (não é CRM), feito com **Python 3.11+**, **Streamlit** e **SQLite**.
+Aplicativo local para gestão de leads (não é CRM), feito com **Python 3.11+**, **Streamlit**, **Plotly** e **SQLite**.
 
 ## Funcionalidades
 
-- Menu lateral com 2 telas:
-  - **Leads**
+- Navegação no topo com 2 telas:
   - **Dashboard**
+  - **Leads**
 - Persistência local em SQLite (`leads.db` na raiz do projeto).
 - Sem login e sem integrações externas.
 - CRUD de leads com regras de validação.
-- Busca, filtros e ações rápidas de estágio.
-- Dashboard com métricas e gráficos.
+- Busca, filtros e ações rápidas de status.
+- Dashboard com cards, gráfico por status, top interesses e últimos atualizados.
+- Interface modernizada com tema customizado (`.streamlit/config.toml`) e componentes visuais em `ui.py`.
 
 ## Estrutura do projeto
 
 ```bash
 .
+├── .streamlit/
+│   └── config.toml
 ├── app.py
+├── ui.py
 ├── db.py
 ├── requirements.txt
 ├── build_exe.md
@@ -68,7 +72,7 @@ A aplicação abrirá no navegador local.
 - `email` validado apenas quando preenchido.
 - `created_at` definido no insert.
 - `updated_at` atualizado em toda alteração.
-- `last_contacted_at` definido automaticamente quando o estágio muda para **Contatado**.
+- `last_contacted_at` definido automaticamente quando o status muda para **Contatado**.
 
 ## Banco de dados
 
