@@ -2,6 +2,7 @@
 
 use chrono::Local;
 use dirs::{config_dir, data_dir};
+use csv::ReaderBuilder;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
@@ -55,6 +56,21 @@ struct DashboardData {
 }
 
 #[derive(Debug, Serialize)]
+struct ImportError {
+    row: usize,
+    message: String,
+    company: String,
+    email: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ImportResult {
+    imported: i64,
+    skipped: i64,
+    errors: Vec<ImportError>,
+}
+
+#[derive(Debug, Serialize)]
 struct NameValue {
     name: String,
     value: i64,
@@ -62,6 +78,167 @@ struct NameValue {
 
 fn now_iso() -> String {
     Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()
+}
+
+fn is_blank(s: &str) -> bool {
+    s.trim().is_empty()
+}
+
+fn is_valid_email(email: &str) -> bool {
+    let e = email.trim();
+    if e.is_empty() {
+        return false;
+    }
+
+    let at = match e.find('@') {
+        Some(i) => i,
+        None => return false,
+    };
+
+    at > 0 && e[at + 1..].contains('.')
+}
+
+fn only_digits(s: &str) -> String {
+    s.chars().filter(|c| c.is_ascii_digit()).collect()
+}
+
+fn is_valid_phone(phone: &str) -> bool {
+    only_digits(phone).len() >= 10
+}
+
+fn normalize_stage(stage: &str) -> String {
+    let normalized = stage.trim();
+    if STAGES.contains(&normalized) {
+        return normalized.to_string();
+    }
+
+    match normalized.to_lowercase().as_str() {
+        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => {
+            "Apresentação".to_string()
+        }
+        _ => "Novo".to_string(),
+    }
+}
+
+fn validate_payload(payload: &LeadPayload) -> Result<(), String> {
+    if is_blank(&payload.company) {
+        return Err("Empresa é obrigatória".into());
+    }
+    if is_blank(&payload.contact_name) {
+        return Err("Contato é obrigatório".into());
+    }
+    if is_blank(&payload.email) {
+        return Err("E-mail é obrigatório".into());
+    }
+    if !is_valid_email(&payload.email) {
+        return Err("E-mail inválido".into());
+    }
+    if is_blank(&payload.phone) {
+        return Err("Telefone é obrigatório".into());
+    }
+    if !is_valid_phone(&payload.phone) {
+        return Err("Telefone inválido".into());
+    }
+    if is_blank(&payload.stage) {
+        return Err("Status é obrigatório".into());
+    }
+
+    Ok(())
+}
+
+fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String> {
+    let now = now_iso();
+    let stage = normalize_stage(&payload.stage);
+    let last_contacted = if stage == "Contatado" {
+        Some(now.clone())
+    } else {
+        None
+    };
+
+    conn.execute(
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let id = conn.last_insert_rowid();
+    get_lead(conn, id)
+}
+
+fn strip_accents(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ã' | 'ä' | 'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' | 'É' | 'È' | 'Ê' | 'Ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' | 'Í' | 'Ì' | 'Î' | 'Ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' | 'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' | 'Ú' | 'Ù' | 'Û' | 'Ü' => 'u',
+            'ç' | 'Ç' => 'c',
+            other => other,
+        })
+        .collect()
+}
+
+fn normalize_header(value: &str) -> String {
+    strip_accents(value)
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
+fn csv_delimiter(content: &str) -> u8 {
+    let first_line = content.lines().next().unwrap_or_default();
+    if first_line.contains(';') {
+        b';'
+    } else {
+        b','
+    }
+}
+
+fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
+    let aliases: [(&str, &[&str]); 5] = [
+        ("company", &["empresa", "company", "razaosocial"]),
+        (
+            "contact_name",
+            &[
+                "contato",
+                "contact",
+                "nome",
+                "nomedocontato",
+                "responsavel",
+            ],
+        ),
+        ("email", &["email", "mail"]),
+        ("phone", &["telefone", "phone", "celular", "whatsapp", "fone"]),
+        ("stage", &["status", "stage", "etapa"]),
+    ];
+
+    let mut index_map: HashMap<String, usize> = HashMap::new();
+    for (index, header) in headers.iter().enumerate() {
+        index_map.insert(normalize_header(header), index);
+    }
+
+    let mut mapped = HashMap::new();
+    for (field, options) in aliases {
+        for option in options {
+            if let Some(index) = index_map.get(*option) {
+                mapped.insert(field.to_string(), *index);
+                break;
+            }
+        }
+    }
+    mapped
+}
+
+fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key: &str) -> String {
+    map.get(key)
+        .and_then(|index| record.get(*index))
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 fn app_db_path() -> Result<PathBuf, String> {
@@ -193,48 +370,112 @@ fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
 #[tauri::command]
 fn create_lead(payload: LeadPayload) -> Result<Lead, String> {
     let conn = open_db()?;
-    if payload.company.trim().is_empty() {
-        return Err("Empresa é obrigatória".into());
-    }
-    let now = now_iso();
-    let stage = if STAGES.contains(&payload.stage.as_str()) {
-        payload.stage.as_str()
-    } else {
-        "Novo"
-    };
-    let last_contacted = if stage == "Contatado" {
-        Some(now.clone())
-    } else {
-        None
-    };
-
-    conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
-    )
-    .map_err(|e| e.to_string())?;
-
-    let id = conn.last_insert_rowid();
-    get_lead(&conn, id)
+    validate_payload(&payload)?;
+    insert_lead(&conn, &payload)
 }
 
 #[tauri::command]
 fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     let conn = open_db()?;
+    validate_payload(&payload)?;
     let current = get_lead(&conn, id)?;
     let now = now_iso();
     let mut last_contacted = current.last_contacted_at;
-    if payload.stage == "Contatado" && current.stage != "Contatado" {
+    let stage = normalize_stage(&payload.stage);
+    if stage == "Contatado" && current.stage != "Contatado" {
         last_contacted = Some(now.clone());
     }
 
     conn.execute(
         "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, company_size=?8, industry=?9, interest=?10, stage=?11, notes=?12, updated_at=?13, last_contacted_at=?14, next_followup_at=?15 WHERE id=?16",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), payload.stage.trim(), payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
+}
+
+#[tauri::command]
+fn import_csv(csv_content: String) -> Result<ImportResult, String> {
+    if csv_content.trim().is_empty() {
+        return Err("CSV vazio".into());
+    }
+
+    let delimiter = csv_delimiter(&csv_content);
+    let mut reader = ReaderBuilder::new()
+        .delimiter(delimiter)
+        .has_headers(true)
+        .from_reader(csv_content.as_bytes());
+
+    let headers = reader.headers().map_err(|e| e.to_string())?.clone();
+    let map = build_header_map(&headers);
+    let conn = open_db()?;
+
+    let mut imported = 0;
+    let mut skipped = 0;
+    let mut errors = Vec::new();
+
+    for (index, row) in reader.records().enumerate() {
+        let row_number = index + 2;
+        let record = match row {
+            Ok(record) => record,
+            Err(err) => {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_number,
+                    message: format!("Linha inválida: {}", err),
+                    company: String::new(),
+                    email: String::new(),
+                });
+                continue;
+            }
+        };
+
+        let payload = LeadPayload {
+            company: read_csv_field(&record, &map, "company"),
+            contact_name: read_csv_field(&record, &map, "contact_name"),
+            email: read_csv_field(&record, &map, "email"),
+            phone: read_csv_field(&record, &map, "phone"),
+            stage: read_csv_field(&record, &map, "stage"),
+            job_title: String::new(),
+            linkedin: String::new(),
+            location: String::new(),
+            company_size: String::new(),
+            industry: String::new(),
+            interest: String::new(),
+            notes: String::new(),
+            next_followup_at: None,
+        };
+
+        if let Err(err) = validate_payload(&payload) {
+            skipped += 1;
+            errors.push(ImportError {
+                row: row_number,
+                message: err,
+                company: payload.company.clone(),
+                email: payload.email.clone(),
+            });
+            continue;
+        }
+
+        if let Err(err) = insert_lead(&conn, &payload) {
+            skipped += 1;
+            errors.push(ImportError {
+                row: row_number,
+                message: err,
+                company: payload.company.clone(),
+                email: payload.email.clone(),
+            });
+            continue;
+        }
+
+        imported += 1;
+    }
+
+    Ok(ImportResult {
+        imported,
+        skipped,
+        errors,
+    })
 }
 
 #[tauri::command]
@@ -339,7 +580,8 @@ fn main() {
             update_stage,
             delete_lead,
             get_dashboard_data,
-            import_legacy_db
+            import_legacy_db,
+            import_csv
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar app");

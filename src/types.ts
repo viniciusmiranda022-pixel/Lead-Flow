@@ -32,3 +32,17 @@ export interface DashboardData {
   by_interest: Array<{ name: string; value: number }>;
   latest: Lead[];
 }
+
+
+export interface ImportError {
+  row: number;
+  message: string;
+  company: string;
+  email: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: ImportError[];
+}

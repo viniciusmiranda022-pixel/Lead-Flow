@@ -1,146 +1,56 @@
 :root{
-  --bg: #F6F8FC;
+  --bg: #F8FAFC;
   --card: #FFFFFF;
+  --surface-2: #F1F5F9;
   --text: #0F172A;
   --muted: #64748B;
+  --subtle: #94A3B8;
   --border: #E2E8F0;
+  --border-strong: #CBD5E1;
 
-  --primary: #2060E8;
-  --focus: rgba(32, 96, 232, 0.28);
+  --primary: #2563EB;
+  --primary-dark: #1D4ED8;
+  --primary-soft: #EFF6FF;
+  --accent: #06B6D4;
+  --accent-dark: #0891B2;
+  --accent-soft: #ECFEFF;
+  --brand-gradient: linear-gradient(90deg, #2563EB 0%, #06B6D4 100%);
+  --brand-gradient-hover: linear-gradient(90deg, #1D4ED8 0%, #0891B2 100%);
+  --focus: rgba(37, 99, 235, 0.35);
 
-  --radius-card: 16px;
+  --radius-card: 14px;
   --radius-control: 12px;
+  --radius-modal: 16px;
 
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06);
-  --shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.08), 0 14px 34px rgba(15, 23, 42, 0.10);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 20px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 2px 8px rgba(15, 23, 42, 0.10), 0 18px 40px rgba(15, 23, 42, 0.08);
 
-  --t-fast: 150ms;
-}
-
-body{
-  background: var(--bg);
-  color: var(--text);
+  --t-fast: 160ms;
 }
 
-.lf-card{
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow);
-}
+body{ background: var(--bg); color: var(--text); }
+.lf-card{ background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: var(--shadow); }
+.lf-card-hover{ transition: transform var(--t-fast) ease-out, box-shadow var(--t-fast) ease-out; }
+.lf-card-hover:hover{ transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.lf-section-title{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; color:var(--text); }
+.lf-muted{ color: var(--muted); }
+.lf-focusable:focus{ outline:none; box-shadow:0 0 0 4px var(--focus); border-color:var(--primary); }
 
-.lf-card-hover{
-  transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease;
-}
-.lf-card-hover:hover{
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-hover);
-}
+.lf-input{ width:100%; border:1px solid var(--border); border-radius:var(--radius-control); padding:10px 12px; background:#fff; color:var(--text); transition: box-shadow var(--t-fast) ease, border-color var(--t-fast) ease; }
+.lf-input::placeholder{ color:var(--subtle); }
 
-.lf-section-title{
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 16px;
-}
+.lf-btn{ border-radius: var(--radius-control); padding: 10px 14px; border:1px solid var(--border); background:#fff; color:var(--text); transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease, background var(--t-fast) ease; }
+.lf-btn:active{ transform: scale(0.98); }
+.lf-btn-primary{ background: var(--brand-gradient); border-color: transparent; color:#fff; }
+.lf-btn-primary:hover{ background: var(--brand-gradient-hover); box-shadow: var(--shadow-hover); }
 
-.lf-muted{
-  color: var(--muted);
-}
+.lf-modal-overlay{ position:fixed; inset:0; background: rgba(15,23,42,0.45); display:grid; place-items:center; padding:24px; z-index:9999; }
+.lf-modal{ width:min(900px,100%); max-height:85vh; display:flex; flex-direction:column; overflow:hidden; border-radius: var(--radius-modal); background: var(--card); border:1px solid var(--border); box-shadow: var(--shadow-hover); }
+.lf-modal-header{ position: sticky; top:0; z-index: 1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px; border-bottom:1px solid var(--border); background:#fff; }
+.lf-modal-title{ font-size:18px; font-weight:900; color:var(--text); }
+.lf-modal-close{ width:38px; height:38px; border-radius:12px; border:1px solid var(--border); background:#fff; cursor:pointer; }
+.lf-modal-close:hover{ background: var(--surface-2); }
+.lf-modal-body{ overflow-y:auto; padding:16px 18px; }
+.lf-modal-footer{ position:sticky; bottom:0; z-index: 1; background:#fff; border-top:1px solid var(--border); padding:14px 18px; display:flex; justify-content:flex-end; gap:10px; }
 
-.lf-focusable:focus{
-  outline: none;
-  box-shadow: 0 0 0 4px var(--focus);
-  border-color: var(--primary);
-}
-
-.lf-input{
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  padding: 10px 12px;
-  background: #fff;
-  color: var(--text);
-  transition: box-shadow var(--t-fast) ease, border-color var(--t-fast) ease;
-}
-
-.lf-btn{
-  border-radius: var(--radius-control);
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--text);
-  transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease, background var(--t-fast) ease;
-}
-.lf-btn:hover{
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
-}
-.lf-btn-primary{
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-
-.lf-modal-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  z-index: 9999;
-}
-
-.lf-modal{
-  width: min(980px, 100%);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 18px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-hover);
-}
-
-.lf-modal-header{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 18px 12px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lf-modal-title{
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.lf-modal-close{
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: #fff;
-  cursor: pointer;
-}
-
-.lf-modal-body{
-  overflow-y: auto;
-  padding: 16px 18px;
-}
-
-.lf-modal-footer{
-  position: sticky;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid var(--border);
-  padding: 14px 18px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
+.error-text{ font-size:12px; color:#B91C1C; }
