@@ -64,7 +64,29 @@ export function App() {
   };
 
   useEffect(() => {
-    refresh();
+    const initializeData = async () => {
+      setLoading(true);
+      try {
+        let importedLegacyDb = false;
+        try {
+          importedLegacyDb = await api.importLegacyDb();
+        } catch {
+          importedLegacyDb = false;
+        }
+
+        const [leadRows, dashboardData] = await Promise.all([api.listLeads(), api.getDashboard()]);
+        setLeads(leadRows);
+        setDashboard(dashboardData);
+
+        if (importedLegacyDb) {
+          alert('Encontramos sua base anterior e restauramos seus leads automaticamente.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
   }, []);
 
   useEffect(() => {
