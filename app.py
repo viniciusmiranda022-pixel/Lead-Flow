@@ -41,16 +41,18 @@ def to_db_stage(display_stage: str) -> str:
 db.init_db()
 ui.apply_global_css()
 
-if "screen" not in st.session_state:
-    st.session_state.screen = "Dashboard"
-if "edit_lead_id" not in st.session_state:
-    st.session_state.edit_lead_id = None
-if "show_new_lead" not in st.session_state:
-    st.session_state.show_new_lead = False
-if "pending_delete_id" not in st.session_state:
-    st.session_state.pending_delete_id = None
-if "dashboard_stage_filter" not in st.session_state:
-    st.session_state.dashboard_stage_filter = None
+DEFAULT_STATE = {
+    "screen": "Dashboard",
+    "edit_lead_id": None,
+    "show_new_lead": False,
+    "pending_delete_id": None,
+    "dashboard_stage_filter": None,
+    "stage_filter_chip": "Todos",
+    "interest_filter_chip": "Todos",
+}
+for state_key, state_value in DEFAULT_STATE.items():
+    if state_key not in st.session_state:
+        st.session_state[state_key] = state_value
 
 
 def consume_query_navigation() -> None:
@@ -90,10 +92,9 @@ def process_form_submission(payload: dict[str, str], editing_id: int | None) -> 
 def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> None:
     is_edit = editing_row is not None
     with st.form(form_key, clear_on_submit=not is_edit):
-        st.markdown('<h4 style="margin:0 0 10px;">Dados do lead</h4>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
+        form_col_1, form_col_2 = st.columns(2)
 
-        with c1:
+        with form_col_1:
             company = st.text_input("Empresa *", value=(editing_row["company"] if is_edit else ""), placeholder="Ex.: Acme Tecnologia")
             contact_name = st.text_input("Nome do contato", value=(editing_row["contact_name"] if is_edit else ""), placeholder="Ex.: Maria Souza")
             job_title = st.text_input("Cargo", value=(editing_row["job_title"] if is_edit else ""), placeholder="Ex.: Head de Marketing")
@@ -101,7 +102,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             phone = st.text_input("Telefone", value=(editing_row["phone"] if is_edit else ""), placeholder="+55 11 99999-9999")
             linkedin = st.text_input("LinkedIn", value=(editing_row["linkedin"] if is_edit else ""), placeholder="https://linkedin.com/in/...")
 
-        with c2:
+        with form_col_2:
             location = st.text_input("Localização", value=(editing_row["location"] if is_edit else ""), placeholder="São Paulo, Brasil")
             company_size = st.text_input("Tamanho da empresa", value=(editing_row["company_size"] if is_edit else ""), placeholder="51-200 colaboradores")
             industry = st.text_input("Indústria", value=(editing_row["industry"] if is_edit else ""), placeholder="SaaS B2B")
@@ -113,7 +114,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             notes = st.text_area(
                 "Observações",
                 value=(editing_row["notes"] if is_edit else ""),
-                height=110,
+                height=124,
                 placeholder="Notas importantes sobre contexto, timing e próximos passos.",
             )
 
@@ -132,7 +133,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             "notes": notes,
         }
 
-        _, cancel_col, save_col = st.columns([4, 1, 1])
+        _, cancel_col, save_col = st.columns([6, 1.2, 1.2])
         with cancel_col:
             cancelled = st.form_submit_button("Cancelar", use_container_width=True)
         with save_col:
@@ -145,7 +146,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
 
         if submitted:
             if not company.strip():
-                st.markdown('<div style="font-size:.78rem;color:#DC2626;font-weight:600;margin-top:6px;">Empresa é obrigatória.</div>', unsafe_allow_html=True)
+                st.error("Empresa é obrigatória.")
             else:
                 process_form_submission(payload, editing_row["id"] if is_edit else None)
 
@@ -156,12 +157,19 @@ if hasattr(st, "dialog"):
     def open_new_lead_dialog() -> None:
         lead_form("new_lead_form", submit_label="Salvar")
 
+    @st.dialog("Editar Lead", width="large")
+    def open_edit_lead_dialog(editing_row) -> None:
+        lead_form("edit_lead_form", editing_row=editing_row, submit_label="Salvar")
+
 else:
 
     def open_new_lead_dialog() -> None:
         with st.container(border=True):
-            st.markdown("### Novo Lead")
             lead_form("new_lead_form", submit_label="Salvar")
+
+    def open_edit_lead_dialog(editing_row) -> None:
+        with st.container(border=True):
+            lead_form("edit_lead_form", editing_row=editing_row, submit_label="Salvar")
 
 
 def render_dashboard() -> None:
@@ -173,7 +181,7 @@ def render_dashboard() -> None:
     for raw_stage, qty in totals_raw.items():
         totals_by_stage[to_display_stage(raw_stage)] = qty
 
-    st.markdown('<h2 style="margin:0;">Dashboard</h2><div style="color:#64748B;font-size:.9rem;margin:2px 0 14px;">Visão geral do pipeline de leads.</div>', unsafe_allow_html=True)
+    ui.page_title("Dashboard", "Visão geral do pipeline de leads.")
 
     card_data = [
         ("Total", db.total_leads(), "📁", "Todos"),
@@ -188,13 +196,13 @@ def render_dashboard() -> None:
     chart_left, chart_right = st.columns(2)
 
     with chart_left:
-        st.markdown('<div class="lf-card chart-card"><h4>Leads por Status</h4>', unsafe_allow_html=True)
+        ui.chart_card_open("Leads por Status")
         stage_values = [totals_by_stage[label] for label in DISPLAY_STAGES]
         fig_status = px.bar(x=stage_values, y=DISPLAY_STAGES, orientation="h", text=stage_values)
         fig_status.update_traces(
             textposition="outside",
             cliponaxis=False,
-            marker_color="#2563eb",
+            marker_color="#2563EB",
             hovertemplate="Status: %{y}<br>Total: %{x}<extra></extra>",
         )
         fig_status.update_layout(
@@ -203,15 +211,15 @@ def render_dashboard() -> None:
             margin=chart_margin,
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#334155", size=12),
+            font=dict(color="#475569", size=12),
             xaxis=dict(showgrid=True, gridcolor="#E2E8F0", zeroline=False, title=""),
             yaxis=dict(showgrid=False, title=""),
         )
         st.plotly_chart(fig_status, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        ui.chart_card_close()
 
     with chart_right:
-        st.markdown('<div class="lf-card chart-card"><h4>Top 5 Interesses</h4>', unsafe_allow_html=True)
+        ui.chart_card_open("Top 5 Interesses")
         top = db.top_interests(limit=5)
         if top:
             labels = [row["interest"] for row in top]
@@ -220,7 +228,7 @@ def render_dashboard() -> None:
             fig_interest.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                marker_color="#60A5FA",
+                marker_color="#2563EB",
                 hovertemplate="Interesse: %{x}<br>Leads: %{y}<extra></extra>",
             )
             fig_interest.update_layout(
@@ -229,17 +237,17 @@ def render_dashboard() -> None:
                 margin=chart_margin,
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#334155", size=12),
+                font=dict(color="#475569", size=12),
                 xaxis=dict(showgrid=False, title=""),
                 yaxis=dict(showgrid=True, gridcolor="#E2E8F0", zeroline=False, title=""),
             )
             st.plotly_chart(fig_interest, use_container_width=True)
         else:
             st.info("Sem interesses cadastrados ainda.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        ui.chart_card_close()
 
-    st.markdown('<div style="margin-top:16px;"></div><h4 style="margin:0 0 8px;">Últimos 10 Atualizados</h4>', unsafe_allow_html=True)
-    st.markdown('<div class="lf-card recent-list">', unsafe_allow_html=True)
+    st.markdown('<div class="lf-section-subtitle">Últimos 10 atualizados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="lf-card lf-recent-wrap">', unsafe_allow_html=True)
     recent = db.recent_updates(10)
     if not recent:
         st.info("Nenhum lead para exibir.")
@@ -249,10 +257,10 @@ def render_dashboard() -> None:
     for item in recent:
         st.markdown(
             f"""
-            <div class="recent-item">
+            <div class="lf-recent-item">
                 <div>
-                    <div class="recent-company">{item['company']}</div>
-                    <div class="recent-date">{ui.friendly_datetime(item['updated_at'])}</div>
+                    <div class="lf-recent-company">{item['company']}</div>
+                    <div class="lf-recent-date">{ui.friendly_datetime(item['updated_at'])}</div>
                 </div>
                 <div>{ui.status_badge(to_display_stage(item['stage']))}</div>
             </div>
@@ -266,16 +274,23 @@ def normalize_phone_for_whatsapp(phone: str) -> str | None:
     cleaned = re.sub(r"\D", "", phone or "")
     if not cleaned:
         return None
-    if not cleaned.startswith("55"):
+    if len(cleaned) <= 11 and not cleaned.startswith("55"):
         cleaned = f"55{cleaned}"
     return cleaned
 
 
-def render_quick_status_chips(row) -> None:
+def render_card_stage_selector(row) -> None:
     current_display = to_display_stage(row["stage"])
-    quick_status_key = f"quick_status_{row['id']}"
-    selected = ui.pills_filters("Status rápido", DISPLAY_STAGES, current_display, quick_status_key)
-    if selected and selected != current_display:
+    options = [opt for opt in DISPLAY_STAGES if opt != current_display]
+    if not options:
+        return
+    selected = st.selectbox(
+        "Mover para",
+        options=["Mover para..."] + options,
+        key=f"move_stage_{row['id']}",
+        label_visibility="collapsed",
+    )
+    if selected != "Mover para...":
         db.update_stage(row["id"], to_db_stage(selected))
         st.rerun()
 
@@ -309,7 +324,7 @@ def render_lead_card(row) -> None:
         st.success("Lead excluído.")
         st.rerun()
 
-    render_quick_status_chips(row)
+    render_card_stage_selector(row)
 
 
 def apply_dashboard_prefilter() -> None:
@@ -323,38 +338,30 @@ def apply_dashboard_prefilter() -> None:
 def render_leads_screen() -> None:
     apply_dashboard_prefilter()
 
-    top_left, top_right = st.columns([4, 1.2])
-    with top_left:
-        st.markdown('<h2 style="margin:0;">Leads</h2><div style="color:#64748B;font-size:.9rem;margin-top:4px;">Gerencie contatos, estágio e follow-up em uma visão única.</div>', unsafe_allow_html=True)
-    with top_right:
+    ui.page_title("Leads", "Gerencie contatos, status e follow-up em uma visão única.")
+
+    top_cols = st.columns([4, 1])
+    with top_cols[1]:
         if st.button("+ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
 
-    filter_cols = st.columns([2.3, 1.2, 1.2, 1.1])
+    filter_cols = st.columns([2.8, 1.2, 1.2])
     with filter_cols[0]:
-        st.markdown('<div class="lead-search">', unsafe_allow_html=True)
         search = st.text_input("Buscar", placeholder="Buscar empresa, contato, e-mail ou interesse", label_visibility="collapsed")
-        st.markdown('</div>', unsafe_allow_html=True)
     with filter_cols[1]:
-        stage_filter_display = ui.pills_filters("Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip")
+        stage_filter_display = ui.pills_filters("Status", ["Todos"] + DISPLAY_STAGES, st.session_state.stage_filter_chip, "stage_filter_chip")
     with filter_cols[2]:
-        interest_filter = ui.pills_filters("Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip")
-    with filter_cols[3]:
-        sort_by = st.selectbox("Ordenação", ["Recentes", "Nome da empresa"], key="sort_filter_chip", label_visibility="collapsed")
+        interest_filter = ui.pills_filters("Interesse", ["Todos"] + db.get_interest_options(), st.session_state.interest_filter_chip, "interest_filter_chip")
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
 
     editing_row = db.get_lead(st.session_state.edit_lead_id) if st.session_state.edit_lead_id else None
     if editing_row is not None:
-        with st.container(border=True):
-            st.markdown("### Editar Lead")
-            lead_form("edit_lead_form", editing_row=editing_row, submit_label="Salvar")
+        open_edit_lead_dialog(editing_row)
 
     stage_filter = to_db_stage(stage_filter_display) if stage_filter_display != "Todos" else "Todos"
     leads = db.list_leads(search=search, stage=stage_filter, interest=interest_filter)
-    if sort_by == "Nome da empresa":
-        leads = sorted(leads, key=lambda item: (item["company"] or "").lower())
 
     st.caption(f"{len(leads)} leads encontrados")
     if not leads:
