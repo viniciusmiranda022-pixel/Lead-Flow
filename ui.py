@@ -98,6 +98,34 @@ def apply_global_css() -> None:
                 font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-2);
             }
 
+            .page-hero {
+                border: 1px solid #DBEAFE;
+                border-radius: var(--radius-lg);
+                background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%);
+                padding: 18px 20px;
+                margin-bottom: var(--space-3);
+                box-shadow: var(--shadow-soft);
+            }
+            .page-kicker {
+                font-size: 0.73rem;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                font-weight: 700;
+                color: #1D4ED8;
+                margin-bottom: 4px;
+            }
+            .page-hero h1 {
+                margin: 0;
+                font-size: 1.3rem;
+                color: var(--text-primary);
+                letter-spacing: -0.015em;
+            }
+            .page-hero p {
+                margin: 8px 0 0;
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+            }
+
             .filter-chip-wrap { margin-top: var(--space-1); }
             .filter-chip-wrap-compact { margin-top: 0; }
             .filter-chip-title {
@@ -194,6 +222,18 @@ def apply_global_css() -> None:
             .lead-links { display: flex; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: 0.82rem; margin-top: 8px; }
             .lead-links a { color: #334155; text-decoration: none; }
             .lead-links a:hover { color: var(--primary); text-decoration: underline; }
+            .meta-icon {
+                width: 18px;
+                height: 18px;
+                border-radius: 999px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: #EFF6FF;
+                color: #1D4ED8;
+                font-size: 0.7rem;
+                margin-right: 4px;
+            }
             .lead-interest-chip {
                 display: inline-flex; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
                 background: #EEF2FF; color: #3730A3; font-size: 0.72rem; font-weight: 600;
@@ -264,7 +304,7 @@ def render_header_tabs(current_screen: str) -> str:
             <div class="lf-header-row">
                 <div class="lf-brand">
                     <span class="lf-brand-icon">•</span>
-                    <span class="brand-title">LeadFlow</span>
+                    <span class="brand-title">LeadFlow SaaS CRM</span>
                 </div>
             </div>
             """,
@@ -275,19 +315,20 @@ def render_header_tabs(current_screen: str) -> str:
         if hasattr(st, "segmented_control"):
             screen = st.segmented_control(
                 "Navegação",
-                ["Dashboard", "Leads"],
+                ["📊 Dashboard", "🧾 Leads"],
                 selection_mode="single",
-                default=current_screen if current_screen in {"Dashboard", "Leads"} else "Dashboard",
+                default="📊 Dashboard" if current_screen == "Dashboard" else "🧾 Leads",
                 key="header_nav",
                 label_visibility="collapsed",
             )
+            return "Dashboard" if screen == "📊 Dashboard" else "Leads"
         else:
             first_col, second_col = st.columns(2)
             with first_col:
-                if st.button("Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
+                if st.button("📊 Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
                     return "Dashboard"
             with second_col:
-                if st.button("Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
+                if st.button("🧾 Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
                     return "Leads"
             screen = current_screen
 
@@ -326,7 +367,7 @@ def render_metric_cards_clickable(
     for col, (label, value, icon, tone) in zip(columns, cards):
         with col:
             render_metric_card(label, value, icon, tone)
-            if st.button("Ver leads", key=f"{key_prefix}_{label}", use_container_width=True):
+            if st.button("🔎 Ver leads", key=f"{key_prefix}_{label}", use_container_width=True):
                 clicked_label = label
 
     return clicked_label
@@ -336,15 +377,15 @@ def kebab_actions_menu(lead_id: int, pending_delete_id: int | None) -> str | Non
     """Renderiza menu oculto de ações e retorna ação escolhida."""
     if hasattr(st, "popover"):
         with st.popover("⋯"):
-            if st.button("Editar lead", key=f"edit_{lead_id}", use_container_width=True):
+            if st.button("✏️ Editar lead", key=f"edit_{lead_id}", use_container_width=True):
                 return "edit"
 
             if pending_delete_id == lead_id:
-                if st.button("Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
+                if st.button("🗑️ Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
                     return "delete_confirm"
-                if st.button("Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
+                if st.button("↩️ Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
                     return "delete_cancel"
-            elif st.button("Excluir lead", key=f"delete_init_{lead_id}", use_container_width=True):
+            elif st.button("🗑️ Excluir lead", key=f"delete_init_{lead_id}", use_container_width=True):
                 return "delete_init"
         return None
 
@@ -390,9 +431,9 @@ def render_lead_card(
             f"""
             <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
             <div class="lead-links">
-                <span>{'✉ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉ -'}</span>
-                <span>{'☎ <a href="tel:' + phone + '">' + phone + '</a>' if phone else '☎ -'}</span>
-                {f'<span>📍 {location}</span>' if location else ''}
+                <span>{'<span class="meta-icon">✉</span><a href="mailto:' + email + '">' + email + '</a>' if email else '<span class="meta-icon">✉</span>-'} </span>
+                <span>{'<span class="meta-icon">☎</span><a href="tel:' + phone + '">' + phone + '</a>' if phone else '<span class="meta-icon">☎</span>-'} </span>
+                {f'<span><span class="meta-icon">📍</span>{location}</span>' if location else ''}
             </div>
             {f'<div class="lead-interest-chip">{row["interest"]}</div>' if row['interest'] else ''}
             <div class="updated-at">Atualizado em {updated_at}</div>
@@ -403,17 +444,17 @@ def render_lead_card(
         action_cols = st.columns(3)
         with action_cols[0]:
             if email:
-                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
+                st.link_button("✉️ E-mail", f"mailto:{email}", use_container_width=True)
             else:
-                st.button("Enviar e-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
+                st.button("✉️ E-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
         with action_cols[1]:
             if whatsapp_number:
-                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
+                st.link_button("💬 WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
             else:
                 st.empty()
         with action_cols[2]:
             if linkedin:
-                st.link_button("LinkedIn", linkedin, use_container_width=True)
+                st.link_button("🔗 LinkedIn", linkedin, use_container_width=True)
             else:
                 st.empty()
 
