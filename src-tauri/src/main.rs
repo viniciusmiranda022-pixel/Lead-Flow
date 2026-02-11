@@ -8,6 +8,20 @@ use std::{collections::HashMap, fs, path::PathBuf};
 
 const STAGES: [&str; 5] = ["Novo", "Contatado", "Apresentação", "Pausado", "Perdido"];
 
+fn normalize_stage(stage: &str) -> String {
+    let trimmed = stage.trim();
+    if STAGES.contains(&trimmed) {
+        return trimmed.to_string();
+    }
+
+    match trimmed.to_lowercase().as_str() {
+        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => {
+            "Apresentação".to_string()
+        }
+        _ => "Novo".to_string(),
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Lead {
     id: i64,
@@ -111,6 +125,7 @@ fn init_db(conn: &Connection) -> Result<(), String> {
 }
 
 fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
+    let stage: String = row.get(11)?;
     Ok(Lead {
         id: row.get(0)?,
         company: row.get(1)?,
@@ -123,7 +138,7 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         company_size: row.get(8)?,
         industry: row.get(9)?,
         interest: row.get(10)?,
-        stage: row.get(11)?,
+        stage: normalize_stage(&stage),
         notes: row.get(12)?,
         created_at: row.get(13)?,
         updated_at: row.get(14)?,
@@ -161,8 +176,12 @@ fn create_lead(payload: LeadPayload) -> Result<Lead, String> {
         return Err("Empresa é obrigatória".into());
     }
     let now = now_iso();
-    let stage = if STAGES.contains(&payload.stage.as_str()) { payload.stage.as_str() } else { "Novo" };
-    let last_contacted = if stage == "Contatado" { Some(now.clone()) } else { None };
+    let stage = normalize_stage(&payload.stage);
+    let last_contacted = if stage == "Contatado" {
+        Some(now.clone())
+    } else {
+        None
+    };
 
     conn.execute(
         "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at)
@@ -181,13 +200,14 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     let current = get_lead(&conn, id)?;
     let now = now_iso();
     let mut last_contacted = current.last_contacted_at;
-    if payload.stage == "Contatado" && current.stage != "Contatado" {
+    let stage = normalize_stage(&payload.stage);
+    if stage == "Contatado" && current.stage != "Contatado" {
         last_contacted = Some(now.clone());
     }
 
     conn.execute(
         "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, company_size=?8, industry=?9, interest=?10, stage=?11, notes=?12, updated_at=?13, last_contacted_at=?14 WHERE id=?15",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), payload.stage.trim(), payload.notes.trim(), now, last_contacted, id],
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, last_contacted, id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -229,9 +249,13 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut by_status: HashMap<String, i64> = STAGES.iter().map(|s| (s.to_string(), 0)).collect();
-    let mut stmt = conn.prepare("SELECT stage, COUNT(*) FROM leads GROUP BY stage").map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT stage, COUNT(*) FROM leads GROUP BY stage")
+        .map_err(|e| e.to_string())?;
     let counts = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
         .map_err(|e| e.to_string())?;
     for row in counts {
         let (stage, qty) = row.map_err(|e| e.to_string())?;
@@ -261,19 +285,82 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(DashboardData { total, by_status, by_interest, latest })
+    Ok(DashboardData {
+        total,
+        by_status,
+        by_interest,
+        latest,
+    })
 }
 
 #[tauri::command]
 fn import_legacy_db() -> Result<bool, String> {
     let target = app_db_path()?;
+
+    if target.exists() {
+        let target_conn = Connection::open(&target).map_err(|e| e.to_string())?;
+        init_db(&target_conn)?;
+        let lead_count: i64 = target_conn
+            .query_row("SELECT COUNT(*) FROM leads", [], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        if lead_count > 0 {
+            return Ok(false);
+        }
+    }
+
     if let Some(legacy) = legacy_db_path() {
         if legacy.exists() && legacy != target {
             fs::copy(legacy, &target).map_err(|e| e.to_string())?;
+            let imported_conn = Connection::open(&target).map_err(|e| e.to_string())?;
+            init_db(&imported_conn)?;
+            let mut stmt = imported_conn
+                .prepare("SELECT id, stage FROM leads")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            for (id, current_stage) in rows {
+                let normalized_stage = normalize_stage(&current_stage);
+                if normalized_stage != current_stage.trim() {
+                    imported_conn
+                        .execute(
+                            "UPDATE leads SET stage = ?1 WHERE id = ?2",
+                            params![normalized_stage, id],
+                        )
+                        .map_err(|e| e.to_string())?;
+                }
+            }
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_stage;
+
+    #[test]
+    fn preserves_supported_stage() {
+        assert_eq!(normalize_stage("Pausado"), "Pausado");
+    }
+
+    #[test]
+    fn migrates_legacy_presentation_label() {
+        assert_eq!(
+            normalize_stage("Apresentação de portifolio feita"),
+            "Apresentação"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_novo_for_unknown_stage() {
+        assert_eq!(normalize_stage("Qualquer"), "Novo");
+    }
 }
 
 fn main() {
