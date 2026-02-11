@@ -166,81 +166,64 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
     get_lead(conn, id)
 }
 
-fn strip_accents(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| match c {
-            'á' | 'à' | 'â' | 'ã' | 'ä' | 'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'a',
-            'é' | 'è' | 'ê' | 'ë' | 'É' | 'È' | 'Ê' | 'Ë' => 'e',
-            'í' | 'ì' | 'î' | 'ï' | 'Í' | 'Ì' | 'Î' | 'Ï' => 'i',
-            'ó' | 'ò' | 'ô' | 'õ' | 'ö' | 'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'o',
-            'ú' | 'ù' | 'û' | 'ü' | 'Ú' | 'Ù' | 'Û' | 'Ü' => 'u',
-            'ç' | 'Ç' => 'c',
-            other => other,
-        })
-        .collect()
-}
+fn normalize_csv_header(s: &str) -> String {
+    let s = s.trim().to_lowercase();
 
-fn normalize_header(value: &str) -> String {
-    strip_accents(value)
-        .to_lowercase()
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect()
-}
-
-fn csv_delimiter(content: &str) -> u8 {
-    let first_line = content.lines().next().unwrap_or_default();
-    if first_line.contains(';') {
-        b';'
-    } else {
-        b','
+    // remove acentos comuns pt-br sem dependência extra
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        let mapped = match ch {
+            'á' | 'à' | 'ã' | 'â' | 'ä' => 'a',
+            'é' | 'ê' | 'è' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'õ' | 'ô' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            _ => ch,
+        };
+        out.push(mapped);
     }
+
+    // remove espaços, hífens etc e deixa só letras/números
+    out.chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
 }
 
 fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
-    let aliases: [(&str, &[&str]); 5] = [
-        ("company", &["empresa", "company", "razaosocial"]),
-        (
-            "contact_name",
-            &[
-                "contato",
-                "contact",
-                "nome",
-                "nomedocontato",
-                "responsavel",
-            ],
-        ),
-        ("email", &["email", "mail"]),
-        ("phone", &["telefone", "phone", "celular", "whatsapp", "fone"]),
-        ("stage", &["status", "stage", "etapa"]),
-    ];
-
+    // Mapa: header normalizado -> índice da coluna
     let mut index_map: HashMap<String, usize> = HashMap::new();
-    for (index, header) in headers.iter().enumerate() {
-        index_map.insert(normalize_header(header), index);
+    for (i, raw) in headers.iter().enumerate() {
+        let key = normalize_csv_header(raw);
+        if !key.is_empty() {
+            index_map.insert(key, i);
+        }
     }
 
-    let mut mapped = HashMap::new();
-    for (field, options) in aliases {
- codex/fix-unclosed-delimiter-in-main.rs-2kr8gw
-        for &option in options {
-            if let Some(&index) = index_map.get(option) {
-                mapped.insert(field.to_string(), index);
+    // Campos canônicos que o import vai usar internamente
+    // (ajuste aqui se seu import espera outros nomes)
+    let aliases: [(&str, &[&str]); 5] = [
+        ("company", &["empresa", "company", "nomeempresa", "razaosocial", "organizacao"]),
+        ("contact_name", &["contato", "contact", "nomecontato", "responsavel", "pessoa", "nome"]),
+        ("email", &["email", "e-mail", "mail"]),
+        ("phone", &["telefone", "phone", "celular", "whatsapp", "tel", "fone"]),
+        ("stage", &["status", "stage", "etapa", "fase"]),
+    ];
 
-        for option in options {
- codex/fix-unclosed-delimiter-in-main.rs-855rlh
-            if let Some(index) = index_map.get(*option) {
+    // Resultado: campo canônico -> índice no CSV
+    let mut out: HashMap<String, usize> = HashMap::new();
 
-            if let Some(index) = index_map.get(option) {
- main
-                mapped.insert(field.to_string(), *index);
- main
+    for (field, opts) in aliases {
+        for &opt in opts {
+            let opt_key = normalize_csv_header(opt);
+            if let Some(&idx) = index_map.get(opt_key.as_str()) {
+                out.insert(field.to_string(), idx);
                 break;
             }
         }
     }
-    mapped
+
+    out
 }
 
 fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key: &str) -> String {
@@ -249,6 +232,16 @@ fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key:
         .unwrap_or_default()
         .trim()
         .to_string()
+}
+
+fn csv_delimiter(csv_content: &str) -> u8 {
+    // Detecta delimitador olhando a primeira linha (header)
+    let first_line = csv_content.lines().next().unwrap_or("");
+
+    let commas = first_line.matches(',').count();
+    let semicolons = first_line.matches(';').count();
+
+    if semicolons > commas { b';' } else { b',' }
 }
 
 fn app_db_path() -> Result<PathBuf, String> {
