@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from urllib.parse import quote
-
 import plotly.express as px
 import streamlit as st
 
@@ -77,58 +75,18 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
         c1, c2 = st.columns(2)
 
         with c1:
-            company = st.text_input(
-                "Empresa *",
-                value=(editing_row["company"] if is_edit else ""),
-                placeholder="Ex.: Acme Tecnologia",
-            )
-            contact_name = st.text_input(
-                "Nome do contato",
-                value=(editing_row["contact_name"] if is_edit else ""),
-                placeholder="Ex.: Maria Souza",
-            )
-            job_title = st.text_input(
-                "Cargo",
-                value=(editing_row["job_title"] if is_edit else ""),
-                placeholder="Ex.: Head de Marketing",
-            )
-            email = st.text_input(
-                "E-mail",
-                value=(editing_row["email"] if is_edit else ""),
-                placeholder="nome@empresa.com",
-            )
-            phone = st.text_input(
-                "Telefone",
-                value=(editing_row["phone"] if is_edit else ""),
-                placeholder="+55 11 99999-9999",
-            )
-            linkedin = st.text_input(
-                "LinkedIn",
-                value=(editing_row["linkedin"] if is_edit else ""),
-                placeholder="https://linkedin.com/in/...",
-            )
+            company = st.text_input("Empresa *", value=(editing_row["company"] if is_edit else ""), placeholder="Ex.: Acme Tecnologia")
+            contact_name = st.text_input("Nome do contato", value=(editing_row["contact_name"] if is_edit else ""), placeholder="Ex.: Maria Souza")
+            job_title = st.text_input("Cargo", value=(editing_row["job_title"] if is_edit else ""), placeholder="Ex.: Head de Marketing")
+            email = st.text_input("E-mail", value=(editing_row["email"] if is_edit else ""), placeholder="nome@empresa.com")
+            phone = st.text_input("Telefone", value=(editing_row["phone"] if is_edit else ""), placeholder="+55 11 99999-9999")
+            linkedin = st.text_input("LinkedIn", value=(editing_row["linkedin"] if is_edit else ""), placeholder="https://linkedin.com/in/...")
 
         with c2:
-            location = st.text_input(
-                "Localização",
-                value=(editing_row["location"] if is_edit else ""),
-                placeholder="São Paulo, Brasil",
-            )
-            company_size = st.text_input(
-                "Tamanho da empresa",
-                value=(editing_row["company_size"] if is_edit else ""),
-                placeholder="51-200 colaboradores",
-            )
-            industry = st.text_input(
-                "Indústria",
-                value=(editing_row["industry"] if is_edit else ""),
-                placeholder="SaaS B2B",
-            )
-            interest = st.text_input(
-                "Interesse",
-                value=(editing_row["interest"] if is_edit else ""),
-                placeholder="Plano Pro",
-            )
+            location = st.text_input("Localização", value=(editing_row["location"] if is_edit else ""), placeholder="São Paulo, Brasil")
+            company_size = st.text_input("Tamanho da empresa", value=(editing_row["company_size"] if is_edit else ""), placeholder="51-200 colaboradores")
+            industry = st.text_input("Indústria", value=(editing_row["industry"] if is_edit else ""), placeholder="SaaS B2B")
+            interest = st.text_input("Interesse", value=(editing_row["interest"] if is_edit else ""), placeholder="Plano Pro")
 
             stage_default = to_display_stage(editing_row["stage"]) if is_edit else "Novo"
             stage_display = st.selectbox("Status", DISPLAY_STAGES, index=DISPLAY_STAGES.index(stage_default))
@@ -155,7 +113,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             "notes": notes,
         }
 
-        spacer, cancel_col, save_col = st.columns([4, 1, 1])
+        _, cancel_col, save_col = st.columns([4, 1, 1])
         with cancel_col:
             cancelled = st.form_submit_button("Cancelar", use_container_width=True)
         with save_col:
@@ -182,11 +140,9 @@ if hasattr(st, "dialog"):
 else:
 
     def open_new_lead_dialog() -> None:
-        st.markdown('<div class="modal-fallback">', unsafe_allow_html=True)
         with st.container(border=True):
             st.markdown("### Novo Lead")
             lead_form("new_lead_form", submit_label="Salvar")
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_dashboard() -> None:
@@ -194,11 +150,10 @@ def render_dashboard() -> None:
     totals_by_stage = {label: 0 for label in DISPLAY_STAGES}
     for raw_stage, qty in totals_raw.items():
         totals_by_stage[to_display_stage(raw_stage)] = qty
-    total = db.total_leads()
 
     cards = st.columns(6)
     card_data = [
-        ("Total", total, "TL", "#ffffff"),
+        ("Total", db.total_leads(), "TL", "#ffffff"),
         ("Novo", totals_by_stage["Novo"], "NV", "#ffffff"),
         ("Contatado", totals_by_stage["Contatado"], "CT", "#ffffff"),
         ("Apresentação", totals_by_stage["Apresentação"], "AP", "#ffffff"),
@@ -214,14 +169,13 @@ def render_dashboard() -> None:
     with chart_left:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.markdown('<div class="chart-title">Leads por status</div>', unsafe_allow_html=True)
-        stage_labels = DISPLAY_STAGES
         stage_values = [totals_by_stage[label] for label in DISPLAY_STAGES]
         fig_status = px.bar(
             x=stage_values,
-            y=stage_labels,
+            y=DISPLAY_STAGES,
             orientation="h",
             text=stage_values,
-            color=stage_labels,
+            color=DISPLAY_STAGES,
             color_discrete_map=ui.STAGE_COLORS,
             labels={"x": "Total", "y": "Status"},
         )
@@ -296,6 +250,60 @@ def render_dashboard() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def render_lead_actions(row) -> None:
+    current_display = to_display_stage(row["stage"])
+    status_key = f"stage_quick_{row['id']}"
+
+    if hasattr(st, "popover"):
+        with st.popover("⋯", use_container_width=True):
+            st.caption("Ações rápidas")
+            selected_display = st.selectbox("Status", DISPLAY_STAGES, index=DISPLAY_STAGES.index(current_display), key=status_key)
+            if selected_display != current_display:
+                if selected_display == "Perdido":
+                    st.warning("Confirme para marcar como Perdido.")
+                if st.button("Aplicar status", key=f"apply_status_{row['id']}", use_container_width=True, type="primary"):
+                    db.update_stage(row["id"], to_db_stage(selected_display))
+                    st.rerun()
+
+            if st.button("Editar lead", key=f"edit_{row['id']}", use_container_width=True):
+                st.session_state.edit_lead_id = row["id"]
+                st.rerun()
+
+            if st.session_state.pending_delete_id == row["id"]:
+                if st.button("Confirmar exclusão", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
+                    db.delete_lead(row["id"])
+                    if st.session_state.edit_lead_id == row["id"]:
+                        reset_edit_mode()
+                    st.session_state.pending_delete_id = None
+                    st.success("Lead excluído.")
+                    st.rerun()
+                if st.button("Cancelar", key=f"delete_cancel_{row['id']}", use_container_width=True):
+                    st.session_state.pending_delete_id = None
+                    st.rerun()
+            else:
+                if st.button("Excluir lead", key=f"delete_init_{row['id']}", use_container_width=True):
+                    st.session_state.pending_delete_id = row["id"]
+                    st.rerun()
+    else:
+        cols = st.columns(3)
+        if cols[0].button("Editar", key=f"edit_fallback_{row['id']}", use_container_width=True):
+            st.session_state.edit_lead_id = row["id"]
+            st.rerun()
+        selected_display = cols[1].selectbox(
+            "Status",
+            DISPLAY_STAGES,
+            index=DISPLAY_STAGES.index(current_display),
+            key=f"{status_key}_fallback",
+            label_visibility="collapsed",
+        )
+        if selected_display != current_display:
+            db.update_stage(row["id"], to_db_stage(selected_display))
+            st.rerun()
+        if cols[2].button("Excluir", key=f"delete_fallback_{row['id']}", use_container_width=True):
+            db.delete_lead(row["id"])
+            st.rerun()
+
+
 def render_lead_card(row) -> None:
     email = row["email"] or ""
     phone = row["phone"] or ""
@@ -320,174 +328,39 @@ def render_lead_card(row) -> None:
         unsafe_allow_html=True,
     )
 
- codex/redesign-ux/ui-for-leadflow
-    controls = st.columns([2.5, 1.2])
+    render_lead_actions(row)
 
-    controls = st.columns([2.2, 1.2])
- main
-    with controls[0]:
-        status_key = f"stage_quick_{row['id']}"
-        current_display = to_display_stage(row["stage"])
 
-        if hasattr(st, "segmented_control"):
-            selected_display = st.segmented_control(
-                "Status rápido",
-                DISPLAY_STAGES,
-                selection_mode="single",
-                default=current_display,
-                key=status_key,
-                label_visibility="collapsed",
-            )
-        else:
-            selected_display = st.radio(
-                "Status rápido",
-                DISPLAY_STAGES,
-                index=DISPLAY_STAGES.index(current_display),
-                key=status_key,
-                horizontal=True,
-                label_visibility="collapsed",
-            )
-
-        if selected_display and selected_display != current_display:
-            if selected_display == "Perdido":
-                st.warning("Confirmar alteração para Perdido.")
-                if st.button("Confirmar Perdido", key=f"confirm_lost_{row['id']}", use_container_width=True, type="secondary"):
-                    db.update_stage(row["id"], to_db_stage(selected_display))
-                    st.rerun()
-            else:
-                db.update_stage(row["id"], to_db_stage(selected_display))
-                st.rerun()
-
-    with controls[1]:
-        c1, c2 = st.columns(2)
-        if c1.button("Editar", key=f"edit_{row['id']}", use_container_width=True):
-            st.session_state.edit_lead_id = row["id"]
-            st.rerun()
-
-        if st.session_state.pending_delete_id == row["id"]:
- codex/redesign-ux/ui-for-leadflow
-            if c2.button("OK", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
-
-            if c2.button("Confirmar", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
- main
-                db.delete_lead(row["id"])
-                if st.session_state.edit_lead_id == row["id"]:
-                    reset_edit_mode()
-                st.session_state.pending_delete_id = None
-                st.success("Lead excluído.")
-                st.rerun()
-            if st.button("Cancelar exclusão", key=f"delete_cancel_{row['id']}", use_container_width=True):
-                st.session_state.pending_delete_id = None
-                st.rerun()
-        else:
-            if c2.button("Excluir", key=f"delete_init_{row['id']}", use_container_width=True):
-                st.session_state.pending_delete_id = row["id"]
-                st.rerun()
+def selection_chip(label: str, options: list[str], default: str, key: str):
+    st.markdown(f'<div class="filter-chip-wrap"><div class="filter-chip-title">{label}</div></div>', unsafe_allow_html=True)
+    if hasattr(st, "pills"):
+        return st.pills(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
+    if hasattr(st, "segmented_control"):
+        return st.segmented_control(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
+    return st.selectbox(label, options, index=options.index(default), key=key, label_visibility="collapsed")
 
 
 def render_leads_screen() -> None:
     st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
- codex/redesign-ux/ui-for-leadflow
-    toolbar = st.columns([3.3, 1.2])
-
     toolbar = st.columns([3.4, 1.1])
- main
 
     with toolbar[0]:
         st.markdown('<div class="lead-search-large">', unsafe_allow_html=True)
-        search = st.text_input(
-            "Buscar",
-            placeholder="Buscar empresa, contato, e-mail ou interesse",
-            label_visibility="collapsed",
-        )
+        search = st.text_input("Buscar", placeholder="Buscar empresa, contato, e-mail ou interesse", label_visibility="collapsed")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with toolbar[1]:
         if st.button("+ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
 
- codex/redesign-ux/ui-for-leadflow
-    stage_options = ["Todos"] + DISPLAY_STAGES
-    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Status</div></div>', unsafe_allow_html=True)
-    stage_filter_display = st.segmented_control(
-        "Filtro por status",
-        stage_options,
-        selection_mode="single",
-        default="Todos",
-        label_visibility="collapsed",
-        key="stage_filter_chip",
-    )
-
-    interest_options = ["Todos"] + db.get_interest_options()
-    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Interesse</div></div>', unsafe_allow_html=True)
-    interest_filter = st.segmented_control(
-        "Filtro por interesse",
-        interest_options,
-        selection_mode="single",
-        default="Todos",
-        label_visibility="collapsed",
-        key="interest_filter_chip",
-    )
-
-    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Ordenação</div></div>', unsafe_allow_html=True)
-    sort_by = st.segmented_control(
+    stage_filter_display = selection_chip("Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip")
+    interest_filter = selection_chip("Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip")
+    sort_by = selection_chip(
         "Ordenação",
         ["Atualizados recentemente", "Nome da empresa"],
-        selection_mode="single",
-        default="Atualizados recentemente",
-        label_visibility="collapsed",
-        key="sort_filter_chip",
+        "Atualizados recentemente",
+        "sort_filter_chip",
     )
-
-    st.markdown("#### Filtros")
-    stage_options = ["Todos"] + DISPLAY_STAGES
-    if hasattr(st, "pills"):
-        stage_filter_display = st.pills(
-            "Status",
-            stage_options,
-            default="Todos",
-            selection_mode="single",
-        )
-    else:
-        stage_filter_display = st.segmented_control(
-            "Status",
-            stage_options,
-            default="Todos",
-            selection_mode="single",
-        )
-
-    interest_options = ["Todos"] + db.get_interest_options()
-    if hasattr(st, "pills"):
-        interest_filter = st.pills(
-            "Interesse",
-            interest_options,
-            default="Todos",
-            selection_mode="single",
-        )
-    else:
-        interest_filter = st.segmented_control(
-            "Interesse",
-            interest_options,
-            default="Todos",
-            selection_mode="single",
-        )
-
-    sort_options = ["Atualizados recentemente", "Nome da empresa"]
-    if hasattr(st, "pills"):
-        sort_by = st.pills(
-            "Ordenar",
-            sort_options,
-            default="Atualizados recentemente",
-            selection_mode="single",
-        )
-    else:
-        sort_by = st.segmented_control(
-            "Ordenar",
-            sort_options,
-            default="Atualizados recentemente",
-            selection_mode="single",
-        )
- main
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
