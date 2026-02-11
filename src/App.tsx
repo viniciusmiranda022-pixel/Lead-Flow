@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -17,16 +17,18 @@ import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } f
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
-type Page = 'Dashboard' | 'Leads' | 'Relatórios';
+type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Relatórios';
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Leads', icon: Users },
+  { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
+  { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Relatórios', icon: FileBarChart }
 ];
 
 function isFollowupPending(lead: Lead) {
-  if (!lead.next_followup_at || lead.stage === 'Perdido' || lead.stage === 'Pausado') {
+  if (!lead.next_followup_at || lead.stage === 'Perdido' || lead.stage === 'Pausado' || lead.stage === 'Ganho') {
     return false;
   }
   const followupDate = new Date(`${lead.next_followup_at}T00:00:00`);
@@ -48,6 +50,7 @@ export function App() {
   const [lostLead, setLostLead] = useState<Lead | null>(null);
   const [followupTick, setFollowupTick] = useState(0);
   const [showFollowupToast, setShowFollowupToast] = useState(false);
+  const [wonSearch, setWonSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -94,6 +97,39 @@ export function App() {
     [leads, followupTick]
   );
 
+  const lostLeads = useMemo(
+    () => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [leads]
+  );
+  const wonLeads = useMemo(
+    () => [...leads].filter((lead) => lead.stage === 'Ganho').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [leads]
+  );
+
+  const filteredWonLeads = useMemo(() => {
+    const search = wonSearch.trim().toLowerCase();
+    if (!search) return wonLeads;
+    return wonLeads.filter((lead) => [lead.company, lead.contact_name].join(' ').toLowerCase().includes(search));
+  }, [wonLeads, wonSearch]);
+
+  const handleLeadsFilterChange = (next: Partial<Record<'search' | 'status' | 'interest' | 'sort', string>>) => {
+    if (next.status === 'Perdido') {
+      setPage('Leads Perdidos');
+      setFilter((prev) => ({ ...prev, ...next, status: 'Todos' }));
+      return;
+    }
+
+    if (next.status === 'Ganho') {
+      setPage('Carteira de Clientes');
+      setWonSearch((next.search ?? filter.search).trim());
+      setFilter((prev) => ({ ...prev, ...next, status: 'Todos' }));
+      return;
+    }
+
+    setFilter((prev) => ({ ...prev, ...next }));
+  };
+
+
   useEffect(() => {
     if (pendingFollowups.length > 0) {
       setShowFollowupToast(true);
@@ -117,6 +153,9 @@ export function App() {
     }
     await api.updateStage(lead.id, stage);
     await refresh();
+    if (stage === 'Ganho') {
+      setPage('Carteira de Clientes');
+    }
   };
 
   const statusChartData = STAGES.map((stage) => ({ stage, total: dashboard?.by_status[stage] ?? 0, color: stageColorMap[stage] }));
@@ -221,7 +260,23 @@ export function App() {
                   <StatCard title="Total" value={dashboard.total} subtitle="👥 Leads no funil" />
                 </button>
                 {STAGES.map((stage) => (
-                  <button key={stage} type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: stage })); }}>
+                  <button
+                    key={stage}
+                    type="button"
+                    className="text-left"
+                    onClick={() => {
+                      if (stage === 'Perdido') {
+                        setPage('Leads Perdidos');
+                        return;
+                      }
+                      if (stage === 'Ganho') {
+                        setPage('Carteira de Clientes');
+                        return;
+                      }
+                      setPage('Leads');
+                      setFilter((f) => ({ ...f, status: stage }));
+                    }}
+                  >
                     <StatCard title={stage} value={dashboard.by_status[stage] ?? 0} stage={stage} />
                   </button>
                 ))}
@@ -339,13 +394,87 @@ export function App() {
                 interest={filter.interest}
                 sort={filter.sort}
                 interests={interests}
-                onChange={(next) => setFilter((prev) => ({ ...prev, ...next }))}
+                onChange={handleLeadsFilterChange}
               />
               <section className="grid gap-3">
                 {filteredLeads.length === 0 ? (
                   <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead encontrado com os filtros atuais.</div>
                 ) : (
                   filteredLeads.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onEdit={(row) => {
+                        setEditingLead(row);
+                        setModalOpen(true);
+                      }}
+                      onDelete={(row) => setDeleteLead(row)}
+                      onUpdateStage={updateStage}
+                    />
+                  ))
+                )}
+              </section>
+            </>
+          ) : null}
+
+          {page === 'Carteira de Clientes' ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-900">Carteira de Clientes</h1>
+                  <p className="text-sm text-slate-500">Leads ganhos e convertidos para relacionamento contínuo.</p>
+                </div>
+                <Badge kind="status" value="Ganho" />
+              </div>
+
+              <div className="lf-card p-4">
+                <label className="space-y-1 text-xs font-medium text-slate-600">
+                  Buscar lead ganho
+                  <input
+                    className="lf-input lf-focusable"
+                    value={wonSearch}
+                    onChange={(event) => setWonSearch(event.target.value)}
+                    placeholder="Digite nome da empresa ou contato..."
+                  />
+                </label>
+              </div>
+
+              <section className="grid gap-3">
+                {filteredWonLeads.length === 0 ? (
+                  <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead ganho encontrado.</div>
+                ) : (
+                  filteredWonLeads.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onEdit={(row) => {
+                        setEditingLead(row);
+                        setModalOpen(true);
+                      }}
+                      onDelete={(row) => setDeleteLead(row)}
+                      onUpdateStage={updateStage}
+                    />
+                  ))
+                )}
+              </section>
+            </>
+          ) : null}
+
+          {page === 'Leads Perdidos' ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-900">Leads Perdidos</h1>
+                  <p className="text-sm text-slate-500">Leads sem avanço no momento, para retomar contato futuramente.</p>
+                </div>
+                <Badge kind="status" value="Perdido" />
+              </div>
+
+              <section className="grid gap-3">
+                {lostLeads.length === 0 ? (
+                  <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead perdido no momento.</div>
+                ) : (
+                  lostLeads.map((lead) => (
                     <LeadCard
                       key={lead.id}
                       lead={lead}
@@ -398,13 +527,14 @@ export function App() {
       <ConfirmDialog
         open={Boolean(lostLead)}
         title="Marcar como Perdido?"
-        description="Confirme para mover o lead para status Perdido."
+        description="Confirme para mover o lead para status Perdido e abrir a tela de Leads Perdidos."
         onCancel={() => setLostLead(null)}
         onConfirm={async () => {
           if (lostLead) {
             await api.updateStage(lostLead.id, 'Perdido');
             setLostLead(null);
             await refresh();
+            setPage('Leads Perdidos');
           }
         }}
       />
