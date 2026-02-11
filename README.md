@@ -4,15 +4,11 @@ Aplicativo local para gestão de leads (não é CRM), feito com **Python 3.11+**
 
 ## Funcionalidades
 
-- Navegação no topo com 2 telas:
-  - **Dashboard**
-  - **Leads**
-- Persistência local em SQLite (`leads.db` na raiz do projeto).
-- Sem login e sem integrações externas.
-- CRUD de leads com regras de validação.
-- Busca, filtros e ações rápidas de status.
-- Dashboard com cards, gráfico por status, top interesses e últimos atualizados.
-- Interface modernizada com tema customizado (`.streamlit/config.toml`) e componentes visuais em `ui.py`.
+- Navegação com telas de **Dashboard** e **Leads**.
+- CRUD completo de leads com validações.
+- Persistência em SQLite.
+- Tema customizado em `.streamlit/config.toml`.
+- Empacotamento para executável Windows (`PyInstaller --onefile`).
 
 ## Estrutura do projeto
 
@@ -23,81 +19,85 @@ Aplicativo local para gestão de leads (não é CRM), feito com **Python 3.11+**
 ├── app.py
 ├── ui.py
 ├── db.py
+├── launcher.py
+├── build_onefile.ps1
+├── build_onefile.bat
 ├── requirements.txt
-├── build_exe.md
 └── README.md
 ```
 
-## Requisitos
+## Rodando em desenvolvimento
 
-- Windows (ou outro SO compatível)
-- Python 3.11+
-- Pip
+1. Criar e ativar ambiente virtual.
 
-## Como rodar localmente
-
-### 1) Criar e ativar ambiente virtual
-
-No **PowerShell**:
+PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-No **Prompt de Comando (cmd)**:
+CMD:
 
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate.bat
 ```
 
-### 2) Instalar dependências
+2. Instalar dependências:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3) Executar aplicação
+3. Executar app:
 
 ```bash
 streamlit run app.py
 ```
 
-A aplicação abrirá no navegador local.
+## Persistência de dados
 
-## Regras implementadas
+- O banco SQLite é resolvido por `db.py` em:
+  - `LEADFLOW_DATA_DIR\leads.db` (quando `LEADFLOW_DATA_DIR` está definida), ou
+  - fallback para pasta do projeto.
+- No executável Windows, o `launcher.py` define automaticamente:
+  - `%LOCALAPPDATA%\LeadFlow\leads.db`
 
-- `company` obrigatório.
-- `email` validado apenas quando preenchido.
-- `created_at` definido no insert.
-- `updated_at` atualizado em toda alteração.
-- `last_contacted_at` definido automaticamente quando o status muda para **Contatado**.
+## Gerar executável Windows (onefile)
 
-## Banco de dados
+### Opção 1: PowerShell
 
-- Arquivo local: `leads.db`
-- Tabela: `leads`
+```powershell
+.\build_onefile.ps1
+```
 
-Campos:
-- `id` (PK autoincrement)
-- `company` (NOT NULL)
-- `contact_name`
-- `job_title`
-- `email`
-- `phone`
-- `linkedin`
-- `location`
-- `company_size`
-- `industry`
-- `interest`
-- `stage` (NOT NULL)
-- `notes`
-- `created_at`
-- `updated_at`
-- `last_contacted_at`
+### Opção 2: CMD (sem depender de ExecutionPolicy)
 
-## Observações
+```cmd
+build_onefile.bat
+```
 
-- Projeto focado em uso local.
-- Para distribuição em `.exe`, veja `build_exe.md`.
+Os scripts de build fazem automaticamente:
+
+- criação de `.venv` (se não existir),
+- instalação de `requirements.txt` + `pyinstaller`,
+- build com `PyInstaller --onefile` usando `launcher.py`,
+- inclusão de `app.py`, `ui.py`, `db.py` e `.streamlit/config.toml` no bundle,
+- coleta de dependências com `--collect-all streamlit` e `--collect-all plotly`.
+
+## Executar o executável
+
+Após o build:
+
+```cmd
+dist\LeadFlow.exe
+```
+
+Ao iniciar, o launcher:
+
+- prepara `%LOCALAPPDATA%\LeadFlow`,
+- define `LEADFLOW_DATA_DIR`,
+- garante `.streamlit/config.toml` no diretório de execução,
+- sobe o Streamlit localmente,
+- abre o navegador em `http://localhost:8501`.
