@@ -8,201 +8,236 @@ from typing import Iterable
 import streamlit as st
 
 TOKENS = {
-    "bg": "#F6F8FC",
+    "bg": "#F8FAFC",
     "surface": "#FFFFFF",
-    "surface_soft": "#F8FAFC",
+    "surface_2": "#F1F5F9",
     "text": "#0F172A",
-    "text_soft": "#475569",
-    "text_muted": "#64748B",
-    "line": "#E2E8F0",
+    "muted": "#475569",
+    "border": "#E2E8F0",
     "primary": "#2563EB",
-    "primary_soft": "#DBEAFE",
-    "radius": "14px",
-    "radius_sm": "10px",
-    "shadow": "0 8px 24px rgba(15, 23, 42, 0.06)",
-    "shadow_hover": "0 14px 28px rgba(15, 23, 42, 0.12)",
-    "space_1": "8px",
-    "space_2": "12px",
-    "space_3": "16px",
-    "space_4": "24px",
-}
-
-STAGE_THEME = {
-    "Novo": {"bg": "#E8F1FF", "fg": "#1D4ED8"},
-    "Contatado": {"bg": "#E0F2FE", "fg": "#0369A1"},
-    "Apresentação": {"bg": "#F3E8FF", "fg": "#6D28D9"},
-    "Apresentação de portifolio feita": {"bg": "#F3E8FF", "fg": "#6D28D9"},
-    "Pausado": {"bg": "#FEF3C7", "fg": "#B45309"},
-    "Perdido": {"bg": "#FEE2E2", "fg": "#B91C1C"},
+    "primary_600": "#1D4ED8",
+    "primary_50": "#EFF6FF",
+    "danger": "#EF4444",
+    "warning": "#F59E0B",
+    "success": "#22C55E",
+    "info": "#06B6D4",
+    "r_sm": "10px",
+    "r_md": "14px",
+    "r_lg": "18px",
+    "r_pill": "999px",
+    "sh_sm": "0 1px 2px rgba(15,23,42,.06)",
+    "sh_md": "0 6px 18px rgba(15,23,42,.10)",
+    "sh_lg": "0 12px 30px rgba(15,23,42,.14)",
+    "s_1": "4px",
+    "s_2": "8px",
+    "s_3": "12px",
+    "s_4": "16px",
+    "s_5": "20px",
+    "s_6": "24px",
+    "s_8": "32px",
+    "s_10": "40px",
 }
 
 
 def apply_global_css() -> None:
-    """Aplica design system SaaS centralizado."""
+    """Injeta design system global do app."""
     st.markdown(
         f"""
         <style>
             :root {{
-                --lf-bg: {TOKENS['bg']};
-                --lf-surface: {TOKENS['surface']};
-                --lf-surface-soft: {TOKENS['surface_soft']};
-                --lf-text: {TOKENS['text']};
-                --lf-text-soft: {TOKENS['text_soft']};
-                --lf-text-muted: {TOKENS['text_muted']};
-                --lf-line: {TOKENS['line']};
-                --lf-primary: {TOKENS['primary']};
-                --lf-primary-soft: {TOKENS['primary_soft']};
-                --lf-radius: {TOKENS['radius']};
-                --lf-radius-sm: {TOKENS['radius_sm']};
-                --lf-shadow: {TOKENS['shadow']};
-                --lf-shadow-hover: {TOKENS['shadow_hover']};
+                --bg: {TOKENS['bg']};
+                --surface: {TOKENS['surface']};
+                --surface-2: {TOKENS['surface_2']};
+                --text: {TOKENS['text']};
+                --muted: {TOKENS['muted']};
+                --border: {TOKENS['border']};
+                --primary: {TOKENS['primary']};
+                --primary-600: {TOKENS['primary_600']};
+                --primary-50: {TOKENS['primary_50']};
+                --danger: {TOKENS['danger']};
+                --warning: {TOKENS['warning']};
+                --success: {TOKENS['success']};
+                --info: {TOKENS['info']};
+                --r-sm: {TOKENS['r_sm']};
+                --r-md: {TOKENS['r_md']};
+                --r-lg: {TOKENS['r_lg']};
+                --r-pill: {TOKENS['r_pill']};
+                --sh-sm: {TOKENS['sh_sm']};
+                --sh-md: {TOKENS['sh_md']};
+                --sh-lg: {TOKENS['sh_lg']};
+                --s-1: {TOKENS['s_1']};
+                --s-2: {TOKENS['s_2']};
+                --s-3: {TOKENS['s_3']};
+                --s-4: {TOKENS['s_4']};
+                --s-5: {TOKENS['s_5']};
+                --s-6: {TOKENS['s_6']};
+                --s-8: {TOKENS['s_8']};
+                --s-10: {TOKENS['s_10']};
             }}
 
             #MainMenu, footer, header[data-testid="stHeader"] {{ visibility: hidden; }}
-            [data-testid="stAppViewContainer"],
-            [data-testid="stAppViewContainer"] > .main,
-            [data-testid="stAppViewContainer"] > .main > div {{
-                background: var(--lf-bg) !important;
+            [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main {{
+                background: var(--bg);
             }}
             .block-container {{
                 max-width: 1200px;
-                padding-top: 16px;
-                padding-left: 24px;
-                padding-right: 24px;
-                padding-bottom: 24px;
+                padding-top: var(--s-4);
+                padding-right: var(--s-6);
+                padding-left: var(--s-6);
+                padding-bottom: var(--s-8);
             }}
+
+            html, body, [class*="css"] {{ color: var(--text); font-size: 14px; }}
+            .lf-page-title {{ font-size: 28px; font-weight: 700; color: var(--text); margin: 0; line-height: 1.2; }}
+            .lf-page-subtitle {{ font-size: 14px; color: var(--muted); margin-top: var(--s-2); margin-bottom: var(--s-6); }}
+            .lf-section-subtitle {{ font-size: 14px; color: var(--muted); margin-top: var(--s-6); margin-bottom: var(--s-3); }}
+            .lf-label {{ font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: var(--s-2); }}
 
             .lf-header {{
                 position: sticky;
-                top: 10px;
-                z-index: 50;
-                background: rgba(246,248,252,0.90);
-                backdrop-filter: blur(8px);
-                border: 1px solid var(--lf-line);
-                border-radius: var(--lf-radius);
-                padding: 12px 16px;
-                margin-bottom: 16px;
-                box-shadow: var(--lf-shadow);
+                top: var(--s-2);
+                z-index: 100;
+                background: var(--surface-2);
+                border: 1px solid var(--border);
+                border-radius: var(--r-lg);
+                box-shadow: var(--sh-sm);
+                padding: var(--s-4);
+                margin-bottom: var(--s-6);
             }}
-            .lf-brand {{ font-size: 1.1rem; font-weight: 700; color: var(--lf-text); letter-spacing: -0.01em; }}
-            .lf-subtitle {{ color: var(--lf-text-muted); font-size: .86rem; margin-top: 4px; }}
+            .lf-brand {{ font-size: 20px; font-weight: 700; color: var(--text); }}
+            .lf-brand-sub {{ font-size: 14px; color: var(--muted); margin-top: var(--s-1); }}
 
             div[data-testid="stSegmentedControl"] [role="radiogroup"] {{
-                gap: 8px;
+                gap: var(--s-2);
                 justify-content: flex-end;
                 background: transparent;
                 border: 0;
                 padding: 0;
             }}
+            div[data-testid="stSegmentedControl"] button,
+            button[kind="secondary"],
+            button[kind="primary"] {{
+                min-height: 40px;
+                border-radius: var(--r-sm);
+                font-size: 14px;
+                font-weight: 600;
+                box-shadow: var(--sh-sm);
+                transition: all .16s ease;
+            }}
             div[data-testid="stSegmentedControl"] button {{
-                border-radius: 999px;
-                border: 1px solid var(--lf-line);
-                background: var(--lf-surface);
-                min-height: 36px;
-                padding: 6px 14px;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                color: var(--text);
+                border-radius: var(--r-pill);
+                min-height: 38px;
             }}
             div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {{
-                background: var(--lf-primary-soft);
-                border-color: #BFDBFE;
-                color: #1E40AF !important;
+                background: var(--primary-50);
+                border-color: var(--primary);
+                color: var(--primary);
+            }}
+
+            button[kind="primary"] {{
+                background: var(--primary);
+                border: 1px solid var(--primary);
+                color: white;
+            }}
+            button[kind="primary"]:hover {{
+                background: var(--primary-600);
+                border-color: var(--primary-600);
+                box-shadow: var(--sh-md);
+                transform: translateY(-1px);
+            }}
+            button[kind="secondary"] {{
+                background: var(--surface);
+                border: 1px solid var(--border);
+                color: var(--text);
+            }}
+            button[kind="secondary"]:hover {{
+                background: var(--surface-2);
+                box-shadow: var(--sh-md);
+                transform: translateY(-1px);
             }}
 
             .lf-card {{
-                border: 1px solid var(--lf-line);
-                background: var(--lf-surface);
-                border-radius: var(--lf-radius);
-                box-shadow: var(--lf-shadow);
-                transition: .18s ease;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-lg);
+                box-shadow: var(--sh-sm);
+                transition: all .18s ease;
             }}
-            .lf-card:hover {{ transform: translateY(-1px); box-shadow: var(--lf-shadow-hover); }}
+            .lf-card:hover {{ box-shadow: var(--sh-md); transform: translateY(-1px); }}
 
-            .lf-metric-link {{
+            .lf-metric-card {{
                 display: block;
                 text-decoration: none;
-                color: inherit;
-                border: 1px solid var(--lf-line);
-                background: var(--lf-surface);
-                border-radius: var(--lf-radius);
-                box-shadow: var(--lf-shadow);
-                padding: 16px;
-                transition: .18s ease;
-                min-height: 116px;
+                padding: var(--s-4);
+                min-height: 120px;
             }}
-            .lf-metric-link:hover {{ transform: translateY(-1px); box-shadow: var(--lf-shadow-hover); }}
-            .lf-metric-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
-            .lf-metric-label {{ font-size: .85rem; color: var(--lf-text-soft); font-weight: 600; }}
-            .lf-metric-value {{ font-size: 1.8rem; color: var(--lf-text); font-weight: 800; }}
-            .lf-metric-icon {{ font-size: 1rem; opacity: .8; }}
+            .lf-metric-title {{ font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: var(--s-3); }}
+            .lf-metric-value {{ font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; }}
+            .lf-metric-icon {{ font-size: 14px; color: var(--muted); float: right; }}
 
-            .lf-section-title {{ font-size: .95rem; font-weight: 700; color: var(--lf-text); margin: 0; }}
-            .lf-section-subtitle {{ font-size: .84rem; color: var(--lf-text-muted); margin-top: 4px; }}
+            .lf-chart-card {{ padding: var(--s-4); min-height: 390px; }}
+            .lf-chart-title {{ font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 var(--s-4) 0; }}
 
-            .chart-card {{ padding: 16px; height: 100%; }}
-            .chart-card h4 {{ margin: 0 0 12px; color: var(--lf-text); font-size: .95rem; }}
-            [data-testid="stPlotlyChart"] {{ background: transparent !important; }}
-
-            .recent-list {{ padding: 8px; }}
-            .recent-item {{
-                display: flex; align-items: center; justify-content: space-between;
-                gap: 12px; padding: 12px; border-radius: var(--lf-radius-sm);
+            .lf-recent-wrap {{ padding: var(--s-2); }}
+            .lf-recent-item {{
+                display: flex; justify-content: space-between; align-items: center;
+                border-radius: var(--r-md); padding: var(--s-3);
             }}
-            .recent-item + .recent-item {{ border-top: 1px solid #EEF2F7; }}
-            .recent-company {{ font-weight: 600; color: var(--lf-text); }}
-            .recent-date {{ font-size: .78rem; color: var(--lf-text-muted); margin-top: 2px; }}
+            .lf-recent-item:hover {{ background: var(--surface-2); }}
+            .lf-recent-company {{ font-weight: 600; font-size: 14px; color: var(--text); }}
+            .lf-recent-date {{ font-size: 12px; color: var(--muted); margin-top: var(--s-1); }}
 
             .lf-badge {{
-                display: inline-flex;
-                align-items: center;
-                padding: 3px 10px;
-                border-radius: 999px;
-                font-size: .75rem;
-                font-weight: 700;
+                display: inline-flex; align-items: center;
+                padding: var(--s-1) var(--s-2);
+                border-radius: var(--r-pill);
+                font-size: 12px; font-weight: 600;
+                border: 1px solid transparent;
+            }}
+            .lf-badge-novo {{ background: var(--primary-50); color: var(--primary); border-color: var(--primary); }}
+            .lf-badge-contatado { background: var(--surface-2); color: var(--info); border-color: var(--info); }
+            .lf-badge-apresentacao { background: var(--surface-2); color: var(--success); border-color: var(--success); }
+            .lf-badge-pausado { background: var(--surface-2); color: var(--warning); border-color: var(--warning); }
+            .lf-badge-perdido { background: var(--surface-2); color: var(--danger); border-color: var(--danger); }
+
+            [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+                border-radius: var(--r-md) !important;
+                border: 1px solid var(--border) !important;
+                background: var(--surface) !important;
+                min-height: 42px;
+            }}
+            [data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus {{
+                border-color: var(--primary) !important;
+                box-shadow: 0 0 0 2px var(--primary-50);
+            }}
+            [data-testid="stTextInput"] label, [data-testid="stTextArea"] label, [data-testid="stSelectbox"] label {{
+                font-size: 12px !important;
+                color: var(--muted) !important;
+                font-weight: 600 !important;
             }}
 
-            .lead-toolbar {{ margin-bottom: 12px; }}
-            .lead-search input {{ min-height: 42px !important; }}
+            .lf-lead-card {{ padding: var(--s-4); margin-bottom: var(--s-4); }}
+            .lf-lead-head {{ display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-3); margin-bottom: var(--s-2); }}
+            .lf-lead-company {{ margin: 0; font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.2; }}
+            .lf-lead-meta, .lf-lead-updated {{ color: var(--muted); font-size: 12px; }}
+            .lf-lead-links {{ display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-2); }}
+            .lf-lead-links a {{ color: var(--primary); text-decoration: none; font-size: 14px; }}
+            .lf-lead-links a:hover {{ color: var(--primary-600); }}
 
-            .lead-card {{ padding: 14px; margin-bottom: 12px; }}
-            .lead-top {{ display: flex; justify-content: space-between; gap: 8px; align-items: start; }}
-            .lead-company {{ margin: 0; font-size: 1rem; color: var(--lf-text); font-weight: 700; }}
-            .lead-meta {{ font-size: .84rem; color: var(--lf-text-soft); margin-top: 4px; }}
-            .lead-links {{ display:flex; flex-wrap:wrap; gap: 12px; font-size: .82rem; margin-top: 10px; }}
-            .lead-links a {{ color: #334155; text-decoration: none; }}
-            .lead-links a:hover {{ color: var(--lf-primary); text-decoration: underline; }}
-            .lead-updated {{ font-size: .76rem; color: var(--lf-text-muted); margin-top: 8px; }}
+            .lf-kebab button {{ opacity: .35; }}
+            .lf-lead-card:hover .lf-kebab button {{ opacity: 1; }}
 
-            .kebab-wrap {{ opacity: .35; transition: .18s ease; }}
-            .kebab-wrap:hover {{ opacity: 1; }}
-            div[data-testid="stVerticalBlock"]:has(.lead-card-hook):hover .kebab-wrap {{ opacity: 1; }}
-
-            div[data-testid="stPills"] button,
-            div[data-testid="stSegmentedControl"] button {{ border-radius: 999px !important; }}
-
-            .stButton > button, .stLinkButton > a {{
-                border-radius: 10px !important;
-                min-height: 38px;
-                font-weight: 600;
-                box-shadow: 0 2px 10px rgba(15,23,42,0.06);
+            div[data-testid="stDialog"] > div {{
+                border-radius: var(--r-lg) !important;
+                border: 1px solid var(--border);
+                box-shadow: var(--sh-lg) !important;
+                background: var(--surface) !important;
             }}
-            .stButton > button[kind="primary"] {{ background: var(--lf-primary) !important; border-color: var(--lf-primary) !important; }}
-
-            [data-testid="stForm"] [data-testid="InputInstructions"] {{ display:none !important; }}
-            [data-testid="stDialog"] [data-testid="stForm"] {{
-                background: var(--lf-surface);
-                border: 1px solid var(--lf-line);
-                border-radius: var(--lf-radius);
-                padding: 16px;
-            }}
-            .stTextInput input, .stTextArea textarea, .stSelectbox [data-baseweb="select"] > div {{
-                border-radius: 10px !important;
-                border-color: var(--lf-line) !important;
-            }}
-            .stTextInput input:focus, .stTextArea textarea:focus, .stSelectbox [data-baseweb="select"]:focus-within {{
-                border-color: var(--lf-primary) !important;
-                box-shadow: 0 0 0 1px var(--lf-primary) !important;
-            }}
-
-            @media (max-width: 900px) {{ .block-container {{ padding-left: 16px; padding-right: 16px; }} }}
+            div[data-testid="stDialogOverlay"] {{ background: rgba(15,23,42,.24) !important; }}
+            div[data-testid="InputInstructions"] {{ display: none !important; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -210,149 +245,150 @@ def apply_global_css() -> None:
 
 
 def render_header(current_screen: str) -> str:
+    st.markdown('<div class="lf-header">', unsafe_allow_html=True)
     left, right = st.columns([3, 2])
     with left:
-        st.markdown('<div class="lf-header"><div class="lf-brand">LeadFlow</div><div class="lf-subtitle">CRM de prospecção</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="lf-brand">LeadFlow</div><div class="lf-brand-sub">Pipeline de vendas organizado com padrão visual único.</div>', unsafe_allow_html=True)
     with right:
         if hasattr(st, "segmented_control"):
-            picked = st.segmented_control(
+            selected = st.segmented_control(
                 "Navegação",
-                ["Dashboard", "Leads"],
+                options=["Dashboard", "Leads"],
                 default=current_screen,
                 selection_mode="single",
-                key="header_nav",
+                key="lf_top_nav",
                 label_visibility="collapsed",
             )
-            return picked or current_screen
-
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
-                return "Dashboard"
-        with c2:
-            if st.button("Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
-                return "Leads"
+            current_screen = selected or current_screen
+        else:
+            nav_cols = st.columns(2)
+            with nav_cols[0]:
+                if st.button("Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
+                    current_screen = "Dashboard"
+            with nav_cols[1]:
+                if st.button("Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
+                    current_screen = "Leads"
+    st.markdown('</div>', unsafe_allow_html=True)
     return current_screen
 
 
-def render_metric_card(label: str, value: int, icon: str, target_status: str) -> None:
-    st.markdown(
-        f"""
-        <a class="lf-metric-link" href="?screen=Leads&status={target_status}">
-            <div class="lf-metric-top">
-                <span class="lf-metric-label">{label}</span>
-                <span class="lf-metric-icon">{icon}</span>
-            </div>
-            <div class="lf-metric-value">{value}</div>
-        </a>
-        """,
-        unsafe_allow_html=True,
-    )
+def page_title(title: str, subtitle: str) -> None:
+    st.markdown(f'<h1 class="lf-page-title">{title}</h1><div class="lf-page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
 
 
 def render_metric_cards_clickable(cards_data: Iterable[tuple[str, int, str, str]]) -> None:
-    cols = st.columns(len(list(cards_data)))
-    for col, (label, value, icon, stage_filter) in zip(cols, cards_data):
+    items = list(cards_data)
+    cols = st.columns(len(items))
+    for col, (label, value, icon, target_status) in zip(cols, items):
         with col:
-            render_metric_card(label, value, icon, stage_filter)
+            st.markdown(
+                f'''
+                <a class="lf-card lf-metric-card" href="?screen=Leads&status={target_status}">
+                    <div class="lf-metric-title">{label} <span class="lf-metric-icon">{icon}</span></div>
+                    <div class="lf-metric-value">{value}</div>
+                </a>
+                ''',
+                unsafe_allow_html=True,
+            )
+
+
+def chart_card_open(title: str) -> None:
+    st.markdown(f'<div class="lf-card lf-chart-card"><h3 class="lf-chart-title">{title}</h3>', unsafe_allow_html=True)
+
+
+def chart_card_close() -> None:
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _stage_class(stage: str) -> str:
+    stage_norm = stage.lower().replace("ç", "c").replace("ã", "a").replace(" ", "-")
+    if "apresent" in stage_norm:
+        return "lf-badge-apresentacao"
+    if "contat" in stage_norm:
+        return "lf-badge-contatado"
+    if "paus" in stage_norm:
+        return "lf-badge-pausado"
+    if "perd" in stage_norm:
+        return "lf-badge-perdido"
+    return "lf-badge-novo"
 
 
 def status_badge(stage: str) -> str:
-    theme = STAGE_THEME.get(stage, {"bg": "#E2E8F0", "fg": "#334155"})
-    return f'<span class="lf-badge" style="background:{theme["bg"]}; color:{theme["fg"]};">{stage}</span>'
+    return f'<span class="lf-badge {_stage_class(stage)}">{stage}</span>'
 
 
 def pills_filters(label: str, options: list[str], default: str, key: str):
+    if key not in st.session_state:
+        st.session_state[key] = default
     if hasattr(st, "pills"):
-        return st.pills(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
+        return st.pills(label, options, selection_mode="single", key=key, label_visibility="collapsed") or st.session_state[key]
     if hasattr(st, "segmented_control"):
-        return st.segmented_control(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
-    return st.selectbox(label, options, index=options.index(default), key=key, label_visibility="collapsed")
+        return st.segmented_control(label, options, selection_mode="single", key=key, label_visibility="collapsed") or st.session_state[key]
+    index = options.index(st.session_state[key]) if st.session_state[key] in options else 0
+    return st.selectbox(label, options, index=index, key=f"{key}_fallback", label_visibility="collapsed")
 
 
 def kebab_actions_menu(lead_id: int, pending_delete_id: int | None) -> str | None:
-    with st.container():
-        st.markdown('<div class="kebab-wrap">', unsafe_allow_html=True)
-        if hasattr(st, "popover"):
-            with st.popover("⋯"):
-                if st.button("Editar", key=f"edit_{lead_id}", use_container_width=True):
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    return "edit"
-                if pending_delete_id == lead_id:
-                    if st.button("Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        return "delete_confirm"
-                    if st.button("Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        return "delete_cancel"
-                elif st.button("Excluir", key=f"delete_init_{lead_id}", use_container_width=True):
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    return "delete_init"
-            st.markdown('</div>', unsafe_allow_html=True)
-            return None
-
+    st.markdown('<div class="lf-kebab">', unsafe_allow_html=True)
+    action = None
+    if hasattr(st, "popover"):
+        with st.popover("⋯", use_container_width=True):
+            if st.button("Editar", key=f"edit_{lead_id}", use_container_width=True):
+                action = "edit"
+            if pending_delete_id == lead_id:
+                if st.button("Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
+                    action = "delete_confirm"
+                if st.button("Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
+                    action = "delete_cancel"
+            else:
+                if st.button("Excluir", key=f"delete_init_{lead_id}", use_container_width=True):
+                    action = "delete_init"
+    else:
         if st.button("Editar", key=f"edit_fallback_{lead_id}", use_container_width=True):
-            st.markdown('</div>', unsafe_allow_html=True)
-            return "edit"
+            action = "edit"
         if st.button("Excluir", key=f"delete_fallback_{lead_id}", use_container_width=True):
-            st.markdown('</div>', unsafe_allow_html=True)
-            return "delete_confirm"
-        st.markdown('</div>', unsafe_allow_html=True)
-    return None
+            action = "delete_confirm"
+    st.markdown('</div>', unsafe_allow_html=True)
+    return action
 
 
-def render_lead_card(row, display_stage: str, updated_at: str, pending_delete_id: int | None, whatsapp_number: str | None) -> str | None:
+def render_lead_card(
+    row,
+    display_stage: str,
+    updated_at: str,
+    pending_delete_id: int | None,
+    whatsapp_number: str | None,
+) -> str | None:
     email = row["email"] or ""
     phone = row["phone"] or ""
     linkedin = row["linkedin"] or ""
-    location = row["location"] or ""
 
-    st.markdown('<div class="lead-card-hook"></div>', unsafe_allow_html=True)
-    with st.container(border=False):
-        st.markdown('<div class="lead-card lf-card">', unsafe_allow_html=True)
-        top_left, top_right = st.columns([8, 1])
-        with top_left:
-            st.markdown(
-                f"""
-                <div class="lead-top">
-                    <h4 class="lead-company">{row['company']}</h4>
-                    <div>{status_badge(display_stage)}</div>
-                </div>
-                <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
-                <div class="lead-links">
-                    {f'<a href="mailto:{email}">✉️ E-mail</a>' if email else '<span>✉️ E-mail indisponível</span>'}
-                    {f'<a href="tel:{phone}">📞 {phone}</a>' if phone else '<span>📞 Sem telefone</span>'}
-                    {f'<span>📍 {location}</span>' if location else ''}
-                    {f'<a href="{linkedin}" target="_blank">🔗 LinkedIn</a>' if linkedin else ''}
-                </div>
-                <div class="lead-updated">Atualizado em {updated_at}</div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with top_right:
-            menu_action = kebab_actions_menu(row["id"], pending_delete_id)
+    st.markdown('<div class="lf-card lf-lead-card">', unsafe_allow_html=True)
 
-        quick_cols = st.columns([1, 1, 1, 1])
-        with quick_cols[0]:
-            if email:
-                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
-            else:
-                st.button("Enviar e-mail", disabled=True, use_container_width=True, key=f"email_disabled_{row['id']}")
-        with quick_cols[1]:
-            if whatsapp_number:
-                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
-            else:
-                st.button("WhatsApp", disabled=True, use_container_width=True, key=f"wa_disabled_{row['id']}")
-        st.markdown('</div>', unsafe_allow_html=True)
+    col_main, col_menu = st.columns([10, 1])
+    with col_main:
+        st.markdown(
+            f'''
+            <div class="lf-lead-head">
+                <h4 class="lf-lead-company">{row["company"]}</h4>
+                <div>{status_badge(display_stage)}</div>
+            </div>
+            <div class="lf-lead-meta">{row["contact_name"] or "Sem contato"} {("• " + row["job_title"]) if row["job_title"] else ""}</div>
+            <div class="lf-lead-links">
+                {f'<a href="mailto:{email}">E-mail</a>' if email else '<span class="lf-lead-meta">E-mail indisponível</span>'}
+                {f'<a href="tel:{phone}">{phone}</a>' if phone else '<span class="lf-lead-meta">Sem telefone</span>'}
+                {f'<a href="{linkedin}" target="_blank">LinkedIn</a>' if linkedin else ''}
+                {f'<a href="https://wa.me/{whatsapp_number}" target="_blank">WhatsApp</a>' if whatsapp_number else ''}
+            </div>
+            <div class="lf-lead-updated">Atualizado em {updated_at}</div>
+            ''',
+            unsafe_allow_html=True,
+        )
+    with col_menu:
+        action = kebab_actions_menu(int(row["id"]), pending_delete_id)
 
-    return menu_action
-
-
-# Backward-compatible aliases
-apply_global_styles = apply_global_css
-render_header_tabs = render_header
-render_top_header = render_header
-stage_badge = status_badge
+    st.markdown('</div>', unsafe_allow_html=True)
+    return action
 
 
 def friendly_datetime(value: str) -> str:
