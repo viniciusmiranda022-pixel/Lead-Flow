@@ -224,7 +224,11 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
     let mut mapped = HashMap::new();
     for (field, options) in aliases {
         for option in options {
+ codex/implementar-validacao-obrigatoria-no-leadflow-suqx2e
             if let Some(index) = index_map.get(*option) {
+
+            if let Some(index) = index_map.get(option) {
+ main
                 mapped.insert(field.to_string(), *index);
                 break;
             }
