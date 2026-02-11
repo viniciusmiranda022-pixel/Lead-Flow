@@ -320,7 +320,11 @@ def render_lead_card(row) -> None:
         unsafe_allow_html=True,
     )
 
+ codex/redesign-ux/ui-for-leadflow
+    controls = st.columns([2.5, 1.2])
+
     controls = st.columns([2.2, 1.2])
+ main
     with controls[0]:
         status_key = f"stage_quick_{row['id']}"
         current_display = to_display_stage(row["stage"])
@@ -361,7 +365,11 @@ def render_lead_card(row) -> None:
             st.rerun()
 
         if st.session_state.pending_delete_id == row["id"]:
+ codex/redesign-ux/ui-for-leadflow
+            if c2.button("OK", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
+
             if c2.button("Confirmar", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
+ main
                 db.delete_lead(row["id"])
                 if st.session_state.edit_lead_id == row["id"]:
                     reset_edit_mode()
@@ -379,7 +387,11 @@ def render_lead_card(row) -> None:
 
 def render_leads_screen() -> None:
     st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
+ codex/redesign-ux/ui-for-leadflow
+    toolbar = st.columns([3.3, 1.2])
+
     toolbar = st.columns([3.4, 1.1])
+ main
 
     with toolbar[0]:
         st.markdown('<div class="lead-search-large">', unsafe_allow_html=True)
@@ -393,6 +405,39 @@ def render_leads_screen() -> None:
     with toolbar[1]:
         if st.button("+ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
+
+ codex/redesign-ux/ui-for-leadflow
+    stage_options = ["Todos"] + DISPLAY_STAGES
+    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Status</div></div>', unsafe_allow_html=True)
+    stage_filter_display = st.segmented_control(
+        "Filtro por status",
+        stage_options,
+        selection_mode="single",
+        default="Todos",
+        label_visibility="collapsed",
+        key="stage_filter_chip",
+    )
+
+    interest_options = ["Todos"] + db.get_interest_options()
+    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Interesse</div></div>', unsafe_allow_html=True)
+    interest_filter = st.segmented_control(
+        "Filtro por interesse",
+        interest_options,
+        selection_mode="single",
+        default="Todos",
+        label_visibility="collapsed",
+        key="interest_filter_chip",
+    )
+
+    st.markdown('<div class="filter-chip-wrap"><div class="filter-chip-title">Ordenação</div></div>', unsafe_allow_html=True)
+    sort_by = st.segmented_control(
+        "Ordenação",
+        ["Atualizados recentemente", "Nome da empresa"],
+        selection_mode="single",
+        default="Atualizados recentemente",
+        label_visibility="collapsed",
+        key="sort_filter_chip",
+    )
 
     st.markdown("#### Filtros")
     stage_options = ["Todos"] + DISPLAY_STAGES
@@ -442,6 +487,7 @@ def render_leads_screen() -> None:
             default="Atualizados recentemente",
             selection_mode="single",
         )
+ main
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
