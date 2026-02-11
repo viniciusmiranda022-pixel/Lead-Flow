@@ -49,6 +49,8 @@ if "show_new_lead" not in st.session_state:
     st.session_state.show_new_lead = False
 if "pending_delete_id" not in st.session_state:
     st.session_state.pending_delete_id = None
+if "dashboard_stage_filter" not in st.session_state:
+    st.session_state.dashboard_stage_filter = None
 
 
 def reset_edit_mode() -> None:
@@ -165,9 +167,22 @@ def render_dashboard() -> None:
         ("Pausado", totals_by_stage["Pausado"], "PZ", "#ffffff"),
         ("Perdido", totals_by_stage["Perdido"], "PD", "#ffffff"),
     ]
+    card_stage_filters = {
+        "Total": "Todos",
+        "Novo": "Novo",
+        "Contatado": "Contatado",
+        "Apresentação": "Apresentação",
+        "Pausado": "Pausado",
+        "Perdido": "Perdido",
+    }
+
     for col, (label, value, icon, tone) in zip(cards, card_data):
         with col:
             ui.render_metric_card(label, value, icon, tone)
+            if st.button("Ver leads", key=f"dashboard_to_leads_{label}", use_container_width=True):
+                st.session_state.dashboard_stage_filter = card_stage_filters[label]
+                st.session_state.screen = "Leads"
+                st.rerun()
 
     chart_left, chart_right = st.columns(2)
 
@@ -407,8 +422,9 @@ def render_lead_card(row) -> None:
         render_quick_status_chips(row)
 
 
-def selection_chip(label: str, options: list[str], default: str, key: str):
-    st.markdown(f'<div class="filter-chip-wrap"><div class="filter-chip-title">{label}</div></div>', unsafe_allow_html=True)
+def selection_chip(label: str, options: list[str], default: str, key: str, compact: bool = False):
+    wrap_class = "filter-chip-wrap filter-chip-wrap-compact" if compact else "filter-chip-wrap"
+    st.markdown(f'<div class="{wrap_class}"><div class="filter-chip-title">{label}</div></div>', unsafe_allow_html=True)
     if hasattr(st, "pills"):
         return st.pills(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
     if hasattr(st, "segmented_control"):
@@ -416,9 +432,20 @@ def selection_chip(label: str, options: list[str], default: str, key: str):
     return st.selectbox(label, options, index=options.index(default), key=key, label_visibility="collapsed")
 
 
+def apply_dashboard_prefilter() -> None:
+    stage_from_dashboard = st.session_state.dashboard_stage_filter
+    if stage_from_dashboard is None:
+        return
+
+    st.session_state.stage_filter_chip = stage_from_dashboard
+    st.session_state.dashboard_stage_filter = None
+
+
 def render_leads_screen() -> None:
+    apply_dashboard_prefilter()
+
     st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
-    toolbar = st.columns([3.4, 1.1])
+    toolbar = st.columns([3.4, 2.6])
 
     with toolbar[0]:
         st.markdown('<div class="lead-search-large">', unsafe_allow_html=True)
@@ -426,17 +453,23 @@ def render_leads_screen() -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     with toolbar[1]:
+        filters = st.columns(3)
+        with filters[0]:
+            stage_filter_display = selection_chip("Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip", compact=True)
+        with filters[1]:
+            interest_filter = selection_chip("Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip", compact=True)
+        with filters[2]:
+            sort_by = st.selectbox(
+                "Ordenação",
+                ["Recentes", "Nome da empresa"],
+                key="sort_filter_chip",
+                label_visibility="collapsed",
+            )
+
+    actions = st.columns([4.2, 1.3])
+    with actions[1]:
         if st.button("+ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
-
-    stage_filter_display = selection_chip("Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip")
-    interest_filter = selection_chip("Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip")
-    sort_by = selection_chip(
-        "Ordenação",
-        ["Atualizados recentemente", "Nome da empresa"],
-        "Atualizados recentemente",
-        "sort_filter_chip",
-    )
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
@@ -452,7 +485,7 @@ def render_leads_screen() -> None:
     if sort_by == "Nome da empresa":
         leads = sorted(leads, key=lambda item: (item["company"] or "").lower())
 
-    st.caption(f"{len(leads)} resultado(s)")
+    st.caption(f"{len(leads)} leads encontrados")
     if not leads:
         st.info("Nenhum lead encontrado.")
         return

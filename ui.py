@@ -98,6 +98,7 @@ def apply_global_styles() -> None:
             }
 
             .filter-chip-wrap { margin-top: var(--space-1); }
+            .filter-chip-wrap-compact { margin-top: 0; }
             .filter-chip-title {
                 font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
                 font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;
@@ -155,7 +156,21 @@ def apply_global_styles() -> None:
                 font-size: 0.72rem; font-weight: 700; color: #fff;
             }
 
-            .lead-search-large input { min-height: 46px !important; font-size: 0.95rem; }
+            
+            .lead-search-large input { min-height: 48px !important; font-size: 0.95rem; }
+            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) div[data-testid="stPills"] button,
+            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) div[data-testid="stSegmentedControl"] button {
+                min-height: 34px !important;
+                padding: 4px 10px !important;
+                font-size: 0.74rem !important;
+            }
+            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) .stSelectbox div[data-baseweb="select"] > div {
+                min-height: 34px !important;
+                border-radius: 999px !important;
+                font-size: 0.78rem !important;
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+            }
             div[data-testid="stVerticalBlock"]:has(.lead-card-marker) {
                 border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface);
                 box-shadow: var(--shadow-soft); padding: var(--space-3); margin-bottom: var(--space-3);
