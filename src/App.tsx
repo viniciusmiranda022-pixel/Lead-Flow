@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Users, X } from 'lucide-react';
 import { api } from './api';
-import logo from './assets/logo.svg';
+import leadflowIcon from './assets/brand/leadflow-icon.svg';
+import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
 import { Badge } from './components/Badge';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { FiltersBar } from './components/FiltersBar';
@@ -129,7 +130,10 @@ export function App() {
         }`}
       >
         <div className="mb-8 flex items-center justify-between">
-          <img src={logo} alt="LeadFlow" className="h-14 w-[300px] object-contain object-left" />
+          <div className="flex items-center gap-3">
+            <img src={leadflowIcon} alt="LeadFlow" className="h-10 w-10 shrink-0 object-contain" />
+            <img src={leadflowWordmark} alt="LeadFlow" className="h-10 w-[240px] object-contain object-left" />
+          </div>
 
           <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}>
             <X size={18} />
@@ -164,9 +168,14 @@ export function App() {
               <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu size={18} />
               </button>
+              <img src={leadflowIcon} alt="LeadFlow" className="h-10 w-10 shrink-0 object-contain md:hidden" />
+              <img
+                src={leadflowWordmark}
+                alt="LeadFlow"
+                className="hidden h-10 w-[220px] object-contain object-left sm:block md:hidden"
+              />
               <p className="truncate text-sm font-semibold uppercase tracking-wide text-slate-500">{page}</p>
             </div>
-            <img src={logo} alt="LeadFlow" className="h-12 w-[240px] max-w-[55vw] object-contain object-left md:hidden" />
 
           </div>
         </header>
