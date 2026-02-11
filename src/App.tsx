@@ -158,11 +158,17 @@ export function App() {
   }, [pendingFollowups.length]);
 
   const saveLead = async (payload: LeadPayload) => {
-    if (editingLead) {
-      await api.updateLead(editingLead.id, payload);
-    } else {
-      await api.createLead(payload);
+    try {
+      if (editingLead) {
+        await api.updateLead(editingLead.id, payload);
+      } else {
+        await api.createLead(payload);
+      }
+    } catch (error) {
+      alert(`Não foi possível salvar o lead: ${String(error)}`);
+      throw error;
     }
+
     setEditingLead(undefined);
     await refresh();
   };
@@ -172,10 +178,14 @@ export function App() {
       setLostLead(lead);
       return;
     }
-    await api.updateStage(lead.id, stage);
-    await refresh();
-    if (stage === 'Ganho') {
-      setPage('Carteira de Clientes');
+    try {
+      await api.updateStage(lead.id, stage);
+      await refresh();
+      if (stage === 'Ganho') {
+        setPage('Carteira de Clientes');
+      }
+    } catch (error) {
+      alert(`Não foi possível atualizar o status: ${String(error)}`);
     }
   };
 
@@ -183,14 +193,18 @@ export function App() {
 
   const handleCsvFile = async (file?: File | null) => {
     if (!file) return;
-    const text = await file.text();
-    const result = await api.importCsv(text);
-    const detail = result.errors
-      .slice(0, 10)
-      .map((item) => `Linha ${item.row}: ${item.message} (${item.company || '-'} / ${item.email || '-'})`)
-      .join('\n');
-    alert(`Importados: ${result.imported}\nIgnorados: ${result.skipped}${detail ? `\n\nErros:\n${detail}` : ''}`);
-    await refresh();
+    try {
+      const text = await file.text();
+      const result = await api.importCsv(text);
+      const detail = result.errors
+        .slice(0, 10)
+        .map((item) => `Linha ${item.row}: ${item.message} (${item.company || '-'} / ${item.email || '-'})`)
+        .join('\n');
+      alert(`Importados: ${result.imported}\nIgnorados: ${result.skipped}${detail ? `\n\nErros:\n${detail}` : ''}`);
+      await refresh();
+    } catch (error) {
+      alert(`Não foi possível importar o CSV: ${String(error)}`);
+    }
   };
 
   return (
