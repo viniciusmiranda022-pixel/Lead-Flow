@@ -39,7 +39,7 @@ def to_db_stage(display_stage: str) -> str:
 
 
 db.init_db()
-ui.apply_global_styles()
+ui.apply_global_css()
 
 if "screen" not in st.session_state:
     st.session_state.screen = "Dashboard"
@@ -158,7 +158,6 @@ def render_dashboard() -> None:
     for raw_stage, qty in totals_raw.items():
         totals_by_stage[to_display_stage(raw_stage)] = qty
 
-    cards = st.columns(6)
     card_data = [
         ("Total", db.total_leads(), "TL", "#ffffff"),
         ("Novo", totals_by_stage["Novo"], "NV", "#ffffff"),
@@ -176,13 +175,11 @@ def render_dashboard() -> None:
         "Perdido": "Perdido",
     }
 
-    for col, (label, value, icon, tone) in zip(cards, card_data):
-        with col:
-            ui.render_metric_card(label, value, icon, tone)
-            if st.button("Ver leads", key=f"dashboard_to_leads_{label}", use_container_width=True):
-                st.session_state.dashboard_stage_filter = card_stage_filters[label]
-                st.session_state.screen = "Leads"
-                st.rerun()
+    metric_clicked = ui.render_metric_cards_clickable(card_data, key_prefix="dashboard_to_leads")
+    if metric_clicked:
+        st.session_state.dashboard_stage_filter = card_stage_filters[metric_clicked]
+        st.session_state.screen = "Leads"
+        st.rerun()
 
     chart_left, chart_right = st.columns(2)
 
@@ -279,44 +276,12 @@ def render_dashboard() -> None:
                         <div class="updated-at">{ui.friendly_datetime(item['updated_at'])}</div>
                     </div>
                 </div>
-                <div>{ui.stage_badge(to_display_stage(item['stage']))}</div>
+                <div>{ui.status_badge(to_display_stage(item['stage']))}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_lead_actions(row) -> None:
-    if hasattr(st, "popover"):
-        with st.popover("⋯"):
-            if st.button("Editar lead", key=f"edit_{row['id']}", use_container_width=True):
-                st.session_state.edit_lead_id = row["id"]
-                st.rerun()
-
-            if st.session_state.pending_delete_id == row["id"]:
-                if st.button("Confirmar exclusão", key=f"delete_confirm_{row['id']}", use_container_width=True, type="primary"):
-                    db.delete_lead(row["id"])
-                    if st.session_state.edit_lead_id == row["id"]:
-                        reset_edit_mode()
-                    st.session_state.pending_delete_id = None
-                    st.success("Lead excluído.")
-                    st.rerun()
-                if st.button("Cancelar", key=f"delete_cancel_{row['id']}", use_container_width=True):
-                    st.session_state.pending_delete_id = None
-                    st.rerun()
-            else:
-                if st.button("Excluir lead", key=f"delete_init_{row['id']}", use_container_width=True):
-                    st.session_state.pending_delete_id = row["id"]
-                    st.rerun()
-    else:
-        cols = st.columns(2)
-        if cols[0].button("Editar", key=f"edit_fallback_{row['id']}", use_container_width=True):
-            st.session_state.edit_lead_id = row["id"]
-            st.rerun()
-        if cols[1].button("Excluir", key=f"delete_fallback_{row['id']}", use_container_width=True):
-            db.delete_lead(row["id"])
-            st.rerun()
 
 
 def normalize_phone_for_whatsapp(phone: str) -> str | None:
@@ -365,61 +330,35 @@ def render_quick_status_chips(row) -> None:
 
 
 def render_lead_card(row) -> None:
-    email = row["email"] or ""
     phone = row["phone"] or ""
-    linkedin = row["linkedin"] or ""
-    location = row["location"] or ""
     whatsapp_number = normalize_phone_for_whatsapp(phone)
 
-    with st.container():
-        st.markdown('<div class="lead-card-marker"></div>', unsafe_allow_html=True)
+    action = ui.render_lead_card(
+        row=row,
+        display_stage=to_display_stage(row["stage"]),
+        updated_at=ui.friendly_datetime(row["updated_at"]),
+        pending_delete_id=st.session_state.pending_delete_id,
+        whatsapp_number=whatsapp_number,
+    )
 
-        top_left, top_right = st.columns([8, 1])
-        with top_left:
-            st.markdown(
-                f"""
-                <div class="lead-row-top">
-                    <div class="lead-company">{row['company']}</div>
-                    <div>{ui.stage_badge(to_display_stage(row['stage']))}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with top_right:
-            render_lead_actions(row)
+    if action == "edit":
+        st.session_state.edit_lead_id = row["id"]
+        st.rerun()
+    if action == "delete_init":
+        st.session_state.pending_delete_id = row["id"]
+        st.rerun()
+    if action == "delete_cancel":
+        st.session_state.pending_delete_id = None
+        st.rerun()
+    if action == "delete_confirm":
+        db.delete_lead(row["id"])
+        if st.session_state.edit_lead_id == row["id"]:
+            reset_edit_mode()
+        st.session_state.pending_delete_id = None
+        st.success("Lead excluído.")
+        st.rerun()
 
-        st.markdown(
-            f"""
-            <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
-            <div class="lead-links">
-                <span>{'✉ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉ -'}</span>
-                <span>{'☎ <a href="tel:' + phone + '">' + phone + '</a>' if phone else '☎ -'}</span>
-                {f'<span>📍 {location}</span>' if location else ''}
-            </div>
-            {f'<div class="lead-interest-chip">{row["interest"]}</div>' if row['interest'] else ''}
-            <div class="updated-at">Atualizado em {ui.friendly_datetime(row['updated_at'])}</div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        action_cols = st.columns(3)
-        with action_cols[0]:
-            if email:
-                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
-            else:
-                st.button("Enviar e-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
-        with action_cols[1]:
-            if whatsapp_number:
-                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
-            else:
-                st.empty()
-        with action_cols[2]:
-            if linkedin:
-                st.link_button("LinkedIn", linkedin, use_container_width=True)
-            else:
-                st.empty()
-
-        render_quick_status_chips(row)
+    render_quick_status_chips(row)
 
 
 def selection_chip(label: str, options: list[str], default: str, key: str, compact: bool = False):
@@ -497,7 +436,7 @@ def render_leads_screen() -> None:
 
 
 def main() -> None:
-    st.session_state.screen = ui.render_top_header(st.session_state.screen)
+    st.session_state.screen = ui.render_header_tabs(st.session_state.screen)
 
     if st.session_state.screen == "Dashboard":
         render_dashboard()

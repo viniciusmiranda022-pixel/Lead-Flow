@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Iterable
 
 import streamlit as st
 
@@ -16,7 +17,7 @@ STAGE_COLORS = {
 }
 
 
-def apply_global_styles() -> None:
+def apply_global_css() -> None:
     """Aplica design system com estética SaaS moderna."""
     st.markdown(
         """
@@ -254,7 +255,7 @@ def apply_global_styles() -> None:
     )
 
 
-def render_top_header(current_screen: str) -> str:
+def render_header_tabs(current_screen: str) -> str:
     """Renderiza header fixo com marca e navegação em pills."""
     left, right = st.columns([3, 2])
     with left:
@@ -308,9 +309,121 @@ def render_metric_card(title: str, value: int, icon: str, tone: str = "#ffffff")
     )
 
 
-def stage_badge(stage: str) -> str:
+def status_badge(stage: str) -> str:
     color = STAGE_COLORS.get(stage, "#64748b")
     return f'<span class="badge" style="background:{color};">{stage}</span>'
+
+
+def render_metric_cards_clickable(
+    cards_data: Iterable[tuple[str, int, str, str]],
+    key_prefix: str = "metric_card",
+) -> str | None:
+    """Renderiza cards de métricas e retorna o rótulo clicado."""
+    cards = list(cards_data)
+    columns = st.columns(len(cards))
+    clicked_label = None
+
+    for col, (label, value, icon, tone) in zip(columns, cards):
+        with col:
+            render_metric_card(label, value, icon, tone)
+            if st.button("Ver leads", key=f"{key_prefix}_{label}", use_container_width=True):
+                clicked_label = label
+
+    return clicked_label
+
+
+def kebab_actions_menu(lead_id: int, pending_delete_id: int | None) -> str | None:
+    """Renderiza menu oculto de ações e retorna ação escolhida."""
+    if hasattr(st, "popover"):
+        with st.popover("⋯"):
+            if st.button("Editar lead", key=f"edit_{lead_id}", use_container_width=True):
+                return "edit"
+
+            if pending_delete_id == lead_id:
+                if st.button("Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
+                    return "delete_confirm"
+                if st.button("Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
+                    return "delete_cancel"
+            elif st.button("Excluir lead", key=f"delete_init_{lead_id}", use_container_width=True):
+                return "delete_init"
+        return None
+
+    cols = st.columns(2)
+    if cols[0].button("Editar", key=f"edit_fallback_{lead_id}", use_container_width=True):
+        return "edit"
+    if cols[1].button("Excluir", key=f"delete_fallback_{lead_id}", use_container_width=True):
+        return "delete_confirm"
+    return None
+
+
+def render_lead_card(
+    row,
+    display_stage: str,
+    updated_at: str,
+    pending_delete_id: int | None,
+    whatsapp_number: str | None,
+) -> str | None:
+    """Renderiza card de lead moderno e retorna ação do menu kebab."""
+    email = row["email"] or ""
+    phone = row["phone"] or ""
+    linkedin = row["linkedin"] or ""
+    location = row["location"] or ""
+
+    with st.container():
+        st.markdown('<div class="lead-card-marker"></div>', unsafe_allow_html=True)
+
+        top_left, top_right = st.columns([8, 1])
+        with top_left:
+            st.markdown(
+                f"""
+                <div class="lead-row-top">
+                    <div class="lead-company">{row['company']}</div>
+                    <div>{status_badge(display_stage)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with top_right:
+            menu_action = kebab_actions_menu(row["id"], pending_delete_id)
+
+        st.markdown(
+            f"""
+            <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
+            <div class="lead-links">
+                <span>{'✉ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉ -'}</span>
+                <span>{'☎ <a href="tel:' + phone + '">' + phone + '</a>' if phone else '☎ -'}</span>
+                {f'<span>📍 {location}</span>' if location else ''}
+            </div>
+            {f'<div class="lead-interest-chip">{row["interest"]}</div>' if row['interest'] else ''}
+            <div class="updated-at">Atualizado em {updated_at}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        action_cols = st.columns(3)
+        with action_cols[0]:
+            if email:
+                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
+            else:
+                st.button("Enviar e-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
+        with action_cols[1]:
+            if whatsapp_number:
+                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
+            else:
+                st.empty()
+        with action_cols[2]:
+            if linkedin:
+                st.link_button("LinkedIn", linkedin, use_container_width=True)
+            else:
+                st.empty()
+
+    return menu_action
+
+
+# Backward-compatible aliases
+apply_global_styles = apply_global_css
+render_top_header = render_header_tabs
+stage_badge = status_badge
 
 
 def friendly_datetime(value: str) -> str:
