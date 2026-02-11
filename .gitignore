@@ -3,3 +3,23 @@ dist/
 src-tauri/target/
 .DS_Store
 *.log
+
+# Local / IDE
+.vs/
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# App data
+leads.db
+
+# Tauri generated
+src-tauri/gen/
+src-tauri/icons/
+
+# Local assets (se forem gerados)
+src/assets/
