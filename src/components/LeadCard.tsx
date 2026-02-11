@@ -14,7 +14,7 @@ interface Props {
 export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   return (
-    <article className="group relative rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-card">
+    <article className="group relative lf-card lf-card-hover p-4">
       <button
         onClick={() => setShowMenu((v) => !v)}
         className="absolute right-3 top-3 hidden rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 group-hover:inline-flex"
@@ -29,8 +29,8 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
       ) : null}
       <div className="flex flex-wrap items-center gap-2 pr-8">
         <h3 className="text-lg font-semibold text-slate-900">{lead.company}</h3>
-        <Badge label={lead.stage} tone={lead.stage} />
-        {lead.interest ? <Badge label={lead.interest} /> : null}
+        <Badge kind="status" value={lead.stage} />
+        <Badge kind="interest" value={lead.interest} />
       </div>
       <p className="mt-1 text-sm text-slate-600">{lead.contact_name || 'Sem contato'}{lead.job_title ? ` · ${lead.job_title}` : ''}</p>
       <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">

@@ -1,17 +1,39 @@
-import { cn } from '../lib/utils';
+import React from "react";
+import { getInterestMeta, getStageMeta } from "../theme/meta";
 
-const toneMap: Record<string, string> = {
-  Novo: 'bg-sky-100 text-sky-700',
-  Contatado: 'bg-indigo-100 text-indigo-700',
-  Apresentação: 'bg-violet-100 text-violet-700',
-  Pausado: 'bg-amber-100 text-amber-700',
-  Perdido: 'bg-rose-100 text-rose-700'
+type Props = {
+  kind: "status" | "interest";
+  value?: string | null;
+  className?: string;
 };
 
-export function Badge({ label, tone }: { label: string; tone?: string }) {
+export function Badge({ kind, value, className }: Props) {
+  const meta =
+    kind === "status"
+      ? getStageMeta(value)
+      : getInterestMeta(value);
+
+  if (!meta) return null;
+
+  const style: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: meta.tint,
+    color: meta.strong,
+    border: "1px solid rgba(15, 23, 42, 0.08)",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: "14px",
+    whiteSpace: "nowrap",
+  };
+
   return (
-    <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', tone ? toneMap[tone] ?? 'bg-slate-100 text-slate-700' : 'bg-slate-100 text-slate-700')}>
-      {label}
+    <span style={style} className={className}>
+      <span aria-hidden="true">{meta.emoji}</span>
+      <span>{meta.label}</span>
     </span>
   );
 }
