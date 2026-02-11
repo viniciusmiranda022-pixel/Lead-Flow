@@ -69,6 +69,24 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
     }
   }, [open, lead]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const save = async () => {
@@ -88,10 +106,17 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
     setPayload((prev) => ({ ...prev, [key]: key === 'stage' ? (value as Stage) : value }));
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-      <div className="lf-card w-full max-w-4xl p-6 shadow-xl">
-        <h3 className="text-lg font-semibold">{lead ? 'Editar Lead' : 'Novo Lead'}</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+    <div className="lf-modal-overlay" onMouseDown={onClose}>
+      <div className="lf-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="lf-modal-header">
+          <h3 className="lf-modal-title">{lead ? 'Editar Lead' : 'Novo Lead'}</h3>
+          <button className="lf-modal-close lf-focusable" type="button" onClick={onClose} aria-label="Fechar">
+            ✕
+          </button>
+        </div>
+
+        <div className="lf-modal-body">
+          <div className="grid gap-3 md:grid-cols-2">
           {[
             ['company', 'Empresa', 'Nome da empresa'],
             ['contact_name', 'Contato', 'Nome da pessoa'],
@@ -211,12 +236,19 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
               placeholder="Contexto, próximos passos e timing..."
             />
           </label>
+          </div>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button className="lf-btn lf-focusable" variant="secondary" onClick={onClose}>
+
+        <div className="lf-modal-footer">
+          <Button className="lf-btn lf-focusable" variant="secondary" onClick={onClose} type="button">
             Cancelar
           </Button>
-          <Button className="lf-btn lf-btn-primary lf-focusable" onClick={save} disabled={loading || !payload.company.trim()}>
+          <Button
+            className="lf-btn lf-btn-primary lf-focusable"
+            onClick={save}
+            disabled={loading || !payload.company.trim()}
+            type="button"
+          >
             {loading ? 'Salvando...' : 'Salvar'}
           </Button>
         </div>
