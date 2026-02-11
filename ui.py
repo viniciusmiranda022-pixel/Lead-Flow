@@ -156,15 +156,42 @@ def apply_global_styles() -> None:
             }
 
             .lead-search-large input { min-height: 46px !important; font-size: 0.95rem; }
-            .lead-card { padding: var(--space-3); margin-bottom: var(--space-3); }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) {
+                border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface);
+                box-shadow: var(--shadow-soft); padding: var(--space-3); margin-bottom: var(--space-3);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker):hover {
+                transform: translateY(-2px); box-shadow: var(--shadow-hover);
+            }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"] > button {
+                opacity: 0; transition: opacity 0.2s ease;
+            }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker):hover [data-testid="stPopover"] > button,
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"] > button:focus-visible,
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"][aria-expanded="true"] > button {
+                opacity: 1;
+            }
             .lead-row-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
             .lead-company { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); }
-            .lead-meta { color: var(--text-secondary); font-size: 0.88rem; margin-top: var(--space-1); }
-            .lead-links { display: flex; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: 0.82rem; margin-top: var(--space-1); }
+            .lead-meta { color: var(--text-secondary); font-size: 0.88rem; margin-top: 4px; }
+            .lead-links { display: flex; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: 0.82rem; margin-top: 8px; }
             .lead-links a { color: #334155; text-decoration: none; }
             .lead-links a:hover { color: var(--primary); text-decoration: underline; }
-            .lead-linkedin { margin-top: 6px; font-size: 0.8rem; }
-            .updated-at { color: var(--text-muted); font-size: 0.78rem; margin-top: var(--space-1); }
+            .lead-interest-chip {
+                display: inline-flex; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
+                background: #EEF2FF; color: #3730A3; font-size: 0.72rem; font-weight: 600;
+            }
+            .updated-at { color: var(--text-muted); font-size: 0.78rem; margin-top: 10px; }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stSegmentedControl"] button,
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stPills"] button {
+                min-height: 30px !important; padding: 3px 10px !important; font-size: 0.75rem !important;
+                border-radius: 999px !important;
+            }
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stSegmentedControl"] button:hover,
+            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stPills"] button:hover {
+                box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+            }
 
             .inline-error { margin-top: var(--space-1); font-size: 0.78rem; color: #DC2626; font-weight: 600; }
 

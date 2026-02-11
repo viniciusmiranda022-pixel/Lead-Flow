@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import plotly.express as px
 import streamlit as st
 
@@ -271,20 +273,8 @@ def render_dashboard() -> None:
 
 
 def render_lead_actions(row) -> None:
-    current_display = to_display_stage(row["stage"])
-    status_key = f"stage_quick_{row['id']}"
-
     if hasattr(st, "popover"):
-        with st.popover("⋯", use_container_width=True):
-            st.caption("Ações rápidas")
-            selected_display = st.selectbox("Status", DISPLAY_STAGES, index=DISPLAY_STAGES.index(current_display), key=status_key)
-            if selected_display != current_display:
-                if selected_display == "Perdido":
-                    st.warning("Confirme para marcar como Perdido.")
-                if st.button("Aplicar status", key=f"apply_status_{row['id']}", use_container_width=True, type="primary"):
-                    db.update_stage(row["id"], to_db_stage(selected_display))
-                    st.rerun()
-
+        with st.popover("⋯"):
             if st.button("Editar lead", key=f"edit_{row['id']}", use_container_width=True):
                 st.session_state.edit_lead_id = row["id"]
                 st.rerun()
@@ -305,50 +295,116 @@ def render_lead_actions(row) -> None:
                     st.session_state.pending_delete_id = row["id"]
                     st.rerun()
     else:
-        cols = st.columns(3)
+        cols = st.columns(2)
         if cols[0].button("Editar", key=f"edit_fallback_{row['id']}", use_container_width=True):
             st.session_state.edit_lead_id = row["id"]
             st.rerun()
-        selected_display = cols[1].selectbox(
-            "Status",
-            DISPLAY_STAGES,
-            index=DISPLAY_STAGES.index(current_display),
-            key=f"{status_key}_fallback",
-            label_visibility="collapsed",
-        )
-        if selected_display != current_display:
-            db.update_stage(row["id"], to_db_stage(selected_display))
-            st.rerun()
-        if cols[2].button("Excluir", key=f"delete_fallback_{row['id']}", use_container_width=True):
+        if cols[1].button("Excluir", key=f"delete_fallback_{row['id']}", use_container_width=True):
             db.delete_lead(row["id"])
             st.rerun()
+
+
+def normalize_phone_for_whatsapp(phone: str) -> str | None:
+    cleaned = re.sub(r"\D", "", phone or "")
+    if not cleaned:
+        return None
+    if not cleaned.startswith("55"):
+        cleaned = f"55{cleaned}"
+    return cleaned
+
+
+def render_quick_status_chips(row) -> None:
+    current_display = to_display_stage(row["stage"])
+    quick_status_key = f"quick_status_{row['id']}"
+    selected = None
+    if hasattr(st, "pills"):
+        selected = st.pills(
+            "Status rápido",
+            DISPLAY_STAGES,
+            default=current_display,
+            selection_mode="single",
+            key=quick_status_key,
+            label_visibility="collapsed",
+        )
+    elif hasattr(st, "segmented_control"):
+        selected = st.segmented_control(
+            "Status rápido",
+            DISPLAY_STAGES,
+            default=current_display,
+            selection_mode="single",
+            key=quick_status_key,
+            label_visibility="collapsed",
+        )
+    else:
+        selected = st.selectbox(
+            "Status rápido",
+            DISPLAY_STAGES,
+            index=DISPLAY_STAGES.index(current_display),
+            key=quick_status_key,
+            label_visibility="collapsed",
+        )
+
+    if selected and selected != current_display:
+        db.update_stage(row["id"], to_db_stage(selected))
+        st.rerun()
 
 
 def render_lead_card(row) -> None:
     email = row["email"] or ""
     phone = row["phone"] or ""
     linkedin = row["linkedin"] or ""
+    location = row["location"] or ""
+    whatsapp_number = normalize_phone_for_whatsapp(phone)
 
-    st.markdown(
-        f"""
-        <div class="lead-card">
-            <div class="lead-row-top">
-                <div class="lead-company">{row['company']}</div>
-                <div>{ui.stage_badge(to_display_stage(row['stage']))}</div>
-            </div>
+    with st.container():
+        st.markdown('<div class="lead-card-marker"></div>', unsafe_allow_html=True)
+
+        top_left, top_right = st.columns([8, 1])
+        with top_left:
+            st.markdown(
+                f"""
+                <div class="lead-row-top">
+                    <div class="lead-company">{row['company']}</div>
+                    <div>{ui.stage_badge(to_display_stage(row['stage']))}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with top_right:
+            render_lead_actions(row)
+
+        st.markdown(
+            f"""
             <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
             <div class="lead-links">
                 <span>{'✉ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉ -'}</span>
                 <span>{'☎ <a href="tel:' + phone + '">' + phone + '</a>' if phone else '☎ -'}</span>
+                {f'<span>📍 {location}</span>' if location else ''}
             </div>
-            <div class="lead-linkedin">{'<a href="' + linkedin + '" target="_blank">LinkedIn</a>' if linkedin else '<span>LinkedIn -</span>'}</div>
+            {f'<div class="lead-interest-chip">{row["interest"]}</div>' if row['interest'] else ''}
             <div class="updated-at">Atualizado em {ui.friendly_datetime(row['updated_at'])}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
-    render_lead_actions(row)
+        action_cols = st.columns(3)
+        with action_cols[0]:
+            if email:
+                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
+            else:
+                st.button("Enviar e-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
+        with action_cols[1]:
+            if whatsapp_number:
+                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
+            else:
+                st.empty()
+        with action_cols[2]:
+            if linkedin:
+                st.link_button("LinkedIn", linkedin, use_container_width=True)
+            else:
+                st.empty()
+
+        render_quick_status_chips(row)
 
 
 def selection_chip(label: str, options: list[str], default: str, key: str):
