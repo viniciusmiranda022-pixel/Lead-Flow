@@ -68,5 +68,4 @@
   <path d="M73 10L79 18L69 20" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 
   <text x="88" y="44" fill="url(#textGradient)" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="-1.2">LeadFlow</text>
- main
 </svg>

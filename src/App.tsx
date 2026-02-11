@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
- codex/add-lost-lead-screen-n9uhke
 import { BriefcaseBusiness, FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
-
- codex/add-lost-lead-screen-k4cimx
-import { BriefcaseBusiness, FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
-
-import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
- main
- main
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -24,28 +16,12 @@ import { getStageMeta, interestChartPalette, stageColorMap } from './theme/meta'
 import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } from './types';
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-
- codex/add-lost-lead-screen-n9uhke
 type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Relatórios';
-
- codex/add-lost-lead-screen-k4cimx
-type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Relatórios';
-
-type Page = 'Dashboard' | 'Leads' | 'Leads Perdidos' | 'Relatórios';
- main
- main
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Leads', icon: Users },
- codex/add-lost-lead-screen-n9uhke
   { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
-
- codex/add-lost-lead-screen-k4cimx
-  { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
-
- main
- main
   { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Relatórios', icon: FileBarChart }
 ];
@@ -88,7 +64,29 @@ export function App() {
   };
 
   useEffect(() => {
-    refresh();
+    const initializeData = async () => {
+      setLoading(true);
+      try {
+        let importedLegacyDb = false;
+        try {
+          importedLegacyDb = await api.importLegacyDb();
+        } catch {
+          importedLegacyDb = false;
+        }
+
+        const [leadRows, dashboardData] = await Promise.all([api.listLeads(), api.getDashboard()]);
+        setLeads(leadRows);
+        setDashboard(dashboardData);
+
+        if (importedLegacyDb) {
+          alert('Encontramos sua base anterior e restauramos seus leads automaticamente.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
   }, []);
 
   useEffect(() => {
@@ -124,10 +122,7 @@ export function App() {
     () => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads]
   );
- codex/add-lost-lead-screen-n9uhke
 
- codex/add-lost-lead-screen-k4cimx
- main
   const wonLeads = useMemo(
     () => [...leads].filter((lead) => lead.stage === 'Ganho').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads]
@@ -139,7 +134,6 @@ export function App() {
     return wonLeads.filter((lead) => [lead.company, lead.contact_name].join(' ').toLowerCase().includes(search));
   }, [wonLeads, wonSearch]);
 
- codex/add-lost-lead-screen-n9uhke
   const handleLeadsFilterChange = (next: Partial<Record<'search' | 'status' | 'interest' | 'sort', string>>) => {
     if (next.status === 'Perdido') {
       setPage('Leads Perdidos');
@@ -156,11 +150,6 @@ export function App() {
 
     setFilter((prev) => ({ ...prev, ...next }));
   };
-
-
-
- main
- main
 
   useEffect(() => {
     if (pendingFollowups.length > 0) {
@@ -449,10 +438,6 @@ export function App() {
             </>
           ) : null}
 
- codex/add-lost-lead-screen-n9uhke
-
- codex/add-lost-lead-screen-k4cimx
- main
           {page === 'Carteira de Clientes' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -496,11 +481,6 @@ export function App() {
             </>
           ) : null}
 
- codex/add-lost-lead-screen-n9uhke
-
-
- main
- main
           {page === 'Leads Perdidos' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
