@@ -12,6 +12,32 @@ import ui
 
 st.set_page_config(page_title="LeadFlow", page_icon="🚀", layout="wide")
 
+DISPLAY_STAGES = ["Novo", "Contatado", "Apresentação", "Pausado", "Perdido"]
+STAGE_TO_DISPLAY = {
+    "Novo": "Novo",
+    "Contatado": "Contatado",
+    "Apresentação de portifolio feita": "Apresentação",
+    "Apresentação": "Apresentação",
+    "Pausado": "Pausado",
+    "Perdido": "Perdido",
+}
+DISPLAY_TO_STAGE = {
+    "Novo": "Novo",
+    "Contatado": "Contatado",
+    "Apresentação": "Apresentação de portifolio feita",
+    "Pausado": "Pausado",
+    "Perdido": "Perdido",
+}
+
+
+def to_display_stage(stage: str) -> str:
+    return STAGE_TO_DISPLAY.get(stage, stage)
+
+
+def to_db_stage(display_stage: str) -> str:
+    return DISPLAY_TO_STAGE.get(display_stage, display_stage)
+
+
 db.init_db()
 ui.apply_global_styles()
 
@@ -23,6 +49,7 @@ if "show_new_lead" not in st.session_state:
     st.session_state.show_new_lead = False
 if "pending_delete_id" not in st.session_state:
     st.session_state.pending_delete_id = None
+
 
 def reset_edit_mode() -> None:
     st.session_state.edit_lead_id = None
@@ -103,8 +130,8 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
                 placeholder="Plano Pro",
             )
 
-            stage_default = editing_row["stage"] if is_edit else "Novo"
-            stage = st.selectbox("Status", db.STAGES, index=db.STAGES.index(stage_default))
+            stage_default = to_display_stage(editing_row["stage"]) if is_edit else "Novo"
+            stage_display = st.selectbox("Status", DISPLAY_STAGES, index=DISPLAY_STAGES.index(stage_default))
 
             notes = st.text_area(
                 "Observações",
@@ -124,7 +151,7 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             "company_size": company_size,
             "industry": industry,
             "interest": interest,
-            "stage": stage,
+            "stage": to_db_stage(stage_display),
             "notes": notes,
         }
 
@@ -140,14 +167,17 @@ def lead_form(form_key: str, editing_row=None, submit_label: str = "Salvar") -> 
             st.rerun()
 
         if submitted:
-            process_form_submission(payload, editing_row["id"] if is_edit else None)
+            if not company.strip():
+                st.markdown('<div class="inline-error">Empresa é obrigatória.</div>', unsafe_allow_html=True)
+            else:
+                process_form_submission(payload, editing_row["id"] if is_edit else None)
 
 
 if hasattr(st, "dialog"):
 
     @st.dialog("Novo Lead", width="large")
     def open_new_lead_dialog() -> None:
-        lead_form("new_lead_form", submit_label="Salvar lead")
+        lead_form("new_lead_form", submit_label="Salvar")
 
 else:
 
@@ -155,22 +185,25 @@ else:
         st.markdown('<div class="modal-fallback">', unsafe_allow_html=True)
         with st.container(border=True):
             st.markdown("### Novo Lead")
-            lead_form("new_lead_form", submit_label="Salvar lead")
+            lead_form("new_lead_form", submit_label="Salvar")
         st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_dashboard() -> None:
-    totals_by_stage = db.count_by_stage()
+    totals_raw = db.count_by_stage()
+    totals_by_stage = {label: 0 for label in DISPLAY_STAGES}
+    for raw_stage, qty in totals_raw.items():
+        totals_by_stage[to_display_stage(raw_stage)] = qty
     total = db.total_leads()
 
     cards = st.columns(6)
     card_data = [
-        ("Total", total, "📈", "#eff6ff"),
-        ("Novo", totals_by_stage["Novo"], "🆕", "#eff6ff"),
-        ("Contatado", totals_by_stage["Contatado"], "📞", "#f0f9ff"),
-        ("Apresentação", totals_by_stage["Apresentação de portifolio feita"], "🧩", "#f5f3ff"),
-        ("Pausado", totals_by_stage["Pausado"], "⏸️", "#fffbeb"),
-        ("Perdido", totals_by_stage["Perdido"], "🛑", "#fef2f2"),
+        ("Total", total, "TL", "#ffffff"),
+        ("Novo", totals_by_stage["Novo"], "NV", "#ffffff"),
+        ("Contatado", totals_by_stage["Contatado"], "CT", "#ffffff"),
+        ("Apresentação", totals_by_stage["Apresentação"], "AP", "#ffffff"),
+        ("Pausado", totals_by_stage["Pausado"], "PZ", "#ffffff"),
+        ("Perdido", totals_by_stage["Perdido"], "PD", "#ffffff"),
     ]
     for col, (label, value, icon, tone) in zip(cards, card_data):
         with col:
@@ -179,9 +212,10 @@ def render_dashboard() -> None:
     chart_left, chart_right = st.columns(2)
 
     with chart_left:
-        st.markdown("#### Leads por Status")
-        stage_labels = list(totals_by_stage.keys())
-        stage_values = list(totals_by_stage.values())
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Leads por status</div>', unsafe_allow_html=True)
+        stage_labels = DISPLAY_STAGES
+        stage_values = [totals_by_stage[label] for label in DISPLAY_STAGES]
         fig_status = px.bar(
             x=stage_values,
             y=stage_labels,
@@ -194,17 +228,19 @@ def render_dashboard() -> None:
         fig_status.update_traces(textposition="outside", cliponaxis=False)
         fig_status.update_layout(
             showlegend=False,
-            height=370,
-            margin=dict(l=0, r=20, t=8, b=0),
+            height=340,
+            margin=dict(l=0, r=8, t=0, b=0),
             plot_bgcolor="white",
             paper_bgcolor="white",
             xaxis=dict(showgrid=False, zeroline=False),
             yaxis=dict(showgrid=False),
         )
         st.plotly_chart(fig_status, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with chart_right:
-        st.markdown("#### Top interesses")
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">Top interesses</div>', unsafe_allow_html=True)
         top = db.top_interests(limit=6)
         if top:
             labels = [row["interest"] for row in top]
@@ -220,8 +256,8 @@ def render_dashboard() -> None:
             fig_interest.update_traces(textposition="outside", cliponaxis=False)
             fig_interest.update_layout(
                 showlegend=False,
-                height=370,
-                margin=dict(l=0, r=10, t=8, b=0),
+                height=340,
+                margin=dict(l=0, r=8, t=0, b=0),
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 xaxis=dict(showgrid=False),
@@ -230,26 +266,34 @@ def render_dashboard() -> None:
             st.plotly_chart(fig_interest, use_container_width=True)
         else:
             st.info("Sem interesses cadastrados ainda.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("#### Últimos 10 atualizados")
+    st.markdown('<div class="section-title">Últimos 10 atualizados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="recent-list">', unsafe_allow_html=True)
     recent = db.recent_updates(10)
     if not recent:
         st.info("Nenhum lead para exibir.")
+        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     for item in recent:
+        initial = (item["company"] or "?")[:1].upper()
         st.markdown(
             f"""
             <div class="recent-item">
-                <div>
-                    <div class="lead-company">{item['company']}</div>
-                    <div class="updated-at">Atualizado em {ui.friendly_datetime(item['updated_at'])}</div>
+                <div class="recent-left">
+                    <span class="recent-avatar">{initial}</span>
+                    <div>
+                        <div class="lead-company">{item['company']}</div>
+                        <div class="updated-at">{ui.friendly_datetime(item['updated_at'])}</div>
+                    </div>
                 </div>
-                <div>{ui.stage_badge(item['stage'])}</div>
+                <div>{ui.stage_badge(to_display_stage(item['stage']))}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_lead_card(row) -> None:
@@ -257,54 +301,61 @@ def render_lead_card(row) -> None:
     phone = row["phone"] or ""
     linkedin = row["linkedin"] or ""
 
-    mailto = ""
-    if email:
-        subject = quote("Contato rápido")
-        body = quote("Olá! Gostaria de conversar rapidamente sobre uma oportunidade.")
-        mailto = f"mailto:{email}?subject={subject}&body={body}"
-
     st.markdown(
         f"""
         <div class="lead-card">
             <div class="lead-row-top">
                 <div class="lead-company">{row['company']}</div>
-                <div>{ui.stage_badge(row['stage'])}</div>
+                <div>{ui.stage_badge(to_display_stage(row['stage']))}</div>
             </div>
-            <div class="lead-meta">👤 {row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
+            <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
             <div class="lead-links">
-                <span>{'✉️ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉️ -'}</span>
-                <span>{'📱 <a href="tel:' + phone + '">' + phone + '</a>' if phone else '📱 -'}</span>
-                <span>{'🔗 <a href="' + linkedin + '" target="_blank">LinkedIn</a>' if linkedin else '🔗 -'}</span>
+                <span>{'✉ <a href="mailto:' + email + '">' + email + '</a>' if email else '✉ -'}</span>
+                <span>{'☎ <a href="tel:' + phone + '">' + phone + '</a>' if phone else '☎ -'}</span>
             </div>
+            <div class="lead-linkedin">{'<a href="' + linkedin + '" target="_blank">LinkedIn</a>' if linkedin else '<span>LinkedIn -</span>'}</div>
             <div class="updated-at">Atualizado em {ui.friendly_datetime(row['updated_at'])}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    controls = st.columns([1.4, 1, 0.8])
+    controls = st.columns([2.7, 1])
     with controls[0]:
-        status_key = f"stage_select_{row['id']}"
-        current_stage = row["stage"]
-        new_stage = st.selectbox(
-            "Mudar status",
-            db.STAGES,
-            index=db.STAGES.index(current_stage),
-            key=status_key,
-            label_visibility="collapsed",
-        )
-        if new_stage != current_stage:
-            if new_stage == "Perdido":
+        status_key = f"stage_quick_{row['id']}"
+        current_display = to_display_stage(row["stage"])
+
+        if hasattr(st, "segmented_control"):
+            selected_display = st.segmented_control(
+                "Status rápido",
+                DISPLAY_STAGES,
+                selection_mode="single",
+                default=current_display,
+                key=status_key,
+                label_visibility="collapsed",
+            )
+        else:
+            selected_display = st.radio(
+                "Status rápido",
+                DISPLAY_STAGES,
+                index=DISPLAY_STAGES.index(current_display),
+                key=status_key,
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+
+        if selected_display and selected_display != current_display:
+            if selected_display == "Perdido":
                 st.warning("Confirmar alteração para Perdido.")
                 if st.button("Confirmar Perdido", key=f"confirm_lost_{row['id']}", use_container_width=True, type="secondary"):
-                    db.update_stage(row["id"], new_stage)
+                    db.update_stage(row["id"], to_db_stage(selected_display))
                     st.rerun()
             else:
-                db.update_stage(row["id"], new_stage)
+                db.update_stage(row["id"], to_db_stage(selected_display))
                 st.rerun()
 
     with controls[1]:
-        with st.popover("⋯ Ações", use_container_width=True):
+        with st.popover("⋯", use_container_width=True):
             if st.button("Editar", key=f"edit_{row['id']}", use_container_width=True):
                 st.session_state.edit_lead_id = row["id"]
                 st.rerun()
@@ -327,18 +378,29 @@ def render_lead_card(row) -> None:
                     st.session_state.pending_delete_id = row["id"]
                     st.rerun()
 
-    with controls[2]:
-        if mailto:
-            st.link_button("✉️ E-mail", url=mailto, use_container_width=True)
-        else:
-            st.button("✉️ E-mail", disabled=True, use_container_width=True)
-
 
 def render_leads_screen() -> None:
-    title_col, action_col = st.columns([4, 1])
-    title_col.markdown("### Leads")
-    if action_col.button("+ Novo Lead", use_container_width=True, type="primary"):
-        st.session_state.show_new_lead = True
+    st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
+    toolbar = st.columns([3.2, 1.2, 1.2, 1.3, 1.3])
+
+    with toolbar[0]:
+        st.markdown('<div class="lead-search-large">', unsafe_allow_html=True)
+        search = st.text_input(
+            "Buscar",
+            placeholder="Buscar empresa, contato, e-mail ou interesse",
+            label_visibility="collapsed",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with toolbar[1]:
+        stage_filter_display = st.selectbox("Status", ["Todos"] + DISPLAY_STAGES, label_visibility="collapsed")
+    with toolbar[2]:
+        interest_filter = st.selectbox("Interesse", ["Todos"] + db.get_interest_options(), label_visibility="collapsed")
+    with toolbar[3]:
+        sort_by = st.selectbox("Ordenar", ["Atualizados recentemente", "Nome da empresa"], label_visibility="collapsed")
+    with toolbar[4]:
+        if st.button("+ Novo Lead", use_container_width=True, type="primary"):
+            st.session_state.show_new_lead = True
 
     if st.session_state.show_new_lead:
         open_new_lead_dialog()
@@ -349,12 +411,7 @@ def render_leads_screen() -> None:
             st.markdown("### Editar Lead")
             lead_form("edit_lead_form", editing_row=editing_row, submit_label="Salvar alterações")
 
-    f1, f2, f3, f4 = st.columns([2.8, 1.2, 1.2, 1.4])
-    search = f1.text_input("Buscar", placeholder="Empresa, contato, e-mail ou interesse")
-    stage_filter = f2.selectbox("Status", ["Todos"] + db.STAGES)
-    interest_filter = f3.selectbox("Interesse", ["Todos"] + db.get_interest_options())
-    sort_by = f4.selectbox("Ordenar", ["Atualizados recentemente", "Nome da empresa"])
-
+    stage_filter = to_db_stage(stage_filter_display) if stage_filter_display != "Todos" else "Todos"
     leads = db.list_leads(search=search, stage=stage_filter, interest=interest_filter)
     if sort_by == "Nome da empresa":
         leads = sorted(leads, key=lambda item: (item["company"] or "").lower())
@@ -364,8 +421,10 @@ def render_leads_screen() -> None:
         st.info("Nenhum lead encontrado.")
         return
 
-    for row in leads:
-        render_lead_card(row)
+    grid_cols = st.columns(2)
+    for idx, row in enumerate(leads):
+        with grid_cols[idx % 2]:
+            render_lead_card(row)
 
 
 def main() -> None:
