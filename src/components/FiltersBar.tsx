@@ -12,7 +12,7 @@ interface Props {
 
 export function FiltersBar({ search, status, interest, sort, interests, onChange }: Props) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="lf-card p-4">
       <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <Input placeholder="Buscar por empresa, contato, e-mail..." value={search} onChange={(e) => onChange({ search: e.target.value })} />
         <Select value={status} onChange={(e) => onChange({ status: e.target.value })} options={[{ label: 'Todos status', value: 'Todos' }, { label: 'Novo', value: 'Novo' }, { label: 'Contatado', value: 'Contatado' }, { label: 'Apresentação', value: 'Apresentação' }, { label: 'Pausado', value: 'Pausado' }, { label: 'Perdido', value: 'Perdido' }]} />

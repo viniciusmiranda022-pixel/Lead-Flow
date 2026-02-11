@@ -1,0 +1,84 @@
+:root{
+  --bg: #F6F8FC;
+  --card: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --border: #E2E8F0;
+
+  --primary: #2060E8;
+  --focus: rgba(32, 96, 232, 0.28);
+
+  --radius-card: 16px;
+  --radius-control: 12px;
+
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.08), 0 14px 34px rgba(15, 23, 42, 0.10);
+
+  --t-fast: 150ms;
+}
+
+body{
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lf-card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.lf-card-hover{
+  transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease;
+}
+.lf-card-hover:hover{
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.lf-section-title{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.lf-muted{
+  color: var(--muted);
+}
+
+.lf-focusable:focus{
+  outline: none;
+  box-shadow: 0 0 0 4px var(--focus);
+  border-color: var(--primary);
+}
+
+.lf-input{
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  transition: box-shadow var(--t-fast) ease, border-color var(--t-fast) ease;
+}
+
+.lf-btn{
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  transition: transform var(--t-fast) ease, box-shadow var(--t-fast) ease, background var(--t-fast) ease;
+}
+.lf-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+}
+.lf-btn-primary{
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}

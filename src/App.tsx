@@ -6,9 +6,9 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { FiltersBar } from './components/FiltersBar';
 import { LeadCard } from './components/LeadCard';
 import { LeadModal } from './components/LeadModal';
-import { MetricCard } from './components/MetricCard';
 import { Badge } from './components/Badge';
 import { Button } from './components/ui/Button';
+import { StatCard } from './components/StatCard';
 import type { DashboardData, Lead, LeadPayload, Stage } from './types';
 import { STAGES } from './types';
 
@@ -76,10 +76,8 @@ export function App() {
     await refresh();
   };
 
-  const statusCount = dashboard?.by_status ?? {};
-
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
           <div className="text-lg font-semibold text-slate-900">LeadFlow</div>
@@ -103,18 +101,32 @@ export function App() {
         {page === 'Dashboard' && dashboard ? (
           <>
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-              <MetricCard label="Total" value={dashboard.total} onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Todos' })); }} />
-              {STAGES.map((stage) => (
-                <MetricCard key={stage} label={stage} value={statusCount[stage] ?? 0} onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: stage })); }} />
-              ))}
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Todos' })); }}>
+                <StatCard title="Total" value={dashboard.total} subtitle="👥 Leads no funil" />
+              </button>
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Novo' })); }}>
+                <StatCard title="Novo" value={dashboard.by_status['Novo'] ?? 0} stage="Novo" />
+              </button>
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Contatado' })); }}>
+                <StatCard title="Contatado" value={dashboard.by_status['Contatado'] ?? 0} stage="Contatado" />
+              </button>
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Apresentação' })); }}>
+                <StatCard title="Apresentação" value={dashboard.by_status['Apresentação'] ?? 0} stage="Apresentação" />
+              </button>
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Pausado' })); }}>
+                <StatCard title="Pausado" value={dashboard.by_status['Pausado'] ?? 0} stage="Pausado" />
+              </button>
+              <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Perdido' })); }}>
+                <StatCard title="Perdido" value={dashboard.by_status['Perdido'] ?? 0} stage="Perdido" />
+              </button>
             </section>
 
             <section className="grid gap-4 xl:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="mb-3 text-base font-semibold">Leads por Status</h2>
+              <div className="lf-card p-4">
+                <h2 className="mb-3 lf-section-title">Leads por Status</h2>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={STAGES.map((stage) => ({ stage, total: statusCount[stage] ?? 0 }))}>
+                    <BarChart data={STAGES.map((stage) => ({ stage, total: dashboard.by_status[stage] ?? 0 }))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="stage" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 12 }} />
@@ -124,8 +136,8 @@ export function App() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="mb-3 text-base font-semibold">Top Interesses</h2>
+              <div className="lf-card p-4">
+                <h2 className="mb-3 lf-section-title">Top Interesses</h2>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -139,14 +151,14 @@ export function App() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <h2 className="text-base font-semibold">Últimos 10 atualizados</h2>
+            <section className="lf-card p-4">
+              <h2 className="lf-section-title">Últimos 10 atualizados</h2>
               <div className="mt-3 grid gap-2">
                 {dashboard.latest.map((lead) => (
                   <div key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{lead.company}</p>
-                      <Badge label={lead.stage} tone={lead.stage} />
+                      <Badge kind="status" value={lead.stage} />
                     </div>
                     <p className="text-xs text-slate-600">{lead.contact_name || 'Sem contato'} · {new Date(lead.updated_at).toLocaleString('pt-BR')}</p>
                   </div>
