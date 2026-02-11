@@ -22,4 +22,5 @@ src-tauri/gen/
 src-tauri/icons/
 
 # Local assets (se forem gerados)
-src/assets/
+src/assets/*
+!src/assets/.gitkeep
