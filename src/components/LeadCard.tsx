@@ -1,4 +1,5 @@
-import { Mail, MapPin, MoreVertical, Phone, Trash2, Pencil, MessageCircle } from 'lucide-react';
+import { Mail, MapPin, MoreVertical, Phone, Trash2, Pencil, MessageCircle, CalendarClock } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-shell';
 import { useState } from 'react';
 import { STAGES, type Lead, type Stage } from '../types';
 import { Badge } from './Badge';
@@ -11,8 +12,32 @@ interface Props {
   onUpdateStage: (lead: Lead, stage: Stage) => void;
 }
 
+function onlyDigits(value: string) {
+  return (value || '').replace(/\D/g, '');
+}
+
 export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   const [showMenu, setShowMenu] = useState(false);
+
+  const phoneDigits = onlyDigits(lead.phone);
+  const hasPhone = phoneDigits.length > 0;
+  const hasEmail = lead.email.trim().length > 0;
+
+  const handleOpenWhatsApp = async () => {
+    if (!hasPhone) return;
+    const message = `Olá ${lead.contact_name || ''}, tudo bem? Aqui é o time da TISCO. Podemos falar sobre ${lead.interest || 'o seu cenário'}?`;
+    const url = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+    await open(url);
+  };
+
+  const handleOpenEmail = async () => {
+    if (!hasEmail) return;
+    const subject = `Follow-up: ${lead.company || 'LeadFlow'}`;
+    const body = `Olá ${lead.contact_name || ''},\n\nConforme combinado, segue meu follow-up sobre ${lead.interest || 'o tema'}.\n\nAbs,\nEquipe TISCO`;
+    const url = `mailto:${lead.email.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    await open(url);
+  };
+
   return (
     <article className="group relative lf-card lf-card-hover p-4">
       <button
@@ -38,6 +63,10 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
         <p className="inline-flex items-center gap-2"><Phone size={14}/> {lead.phone || 'Sem telefone'}</p>
         <p className="inline-flex items-center gap-2"><MapPin size={14}/> {lead.location || 'Sem localização'}</p>
       </div>
+      <p className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600">
+        <CalendarClock size={14} />
+        Próximo follow-up: {lead.next_followup_at ? new Date(`${lead.next_followup_at}T00:00:00`).toLocaleDateString('pt-BR') : 'não definido'}
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {STAGES.map((stage) => (
           <Button
@@ -51,10 +80,10 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="secondary" className="h-8" disabled={!lead.email} onClick={() => window.open(`mailto:${lead.email}`, '_blank') }>
+        <Button variant="secondary" className="h-8" disabled={!hasEmail} onClick={handleOpenEmail}>
           <Mail size={14} /> E-mail
         </Button>
-        <Button variant="secondary" className="h-8" disabled={!lead.phone} onClick={() => window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank')}>
+        <Button variant="secondary" className="h-8" disabled={!hasPhone} onClick={handleOpenWhatsApp}>
           <MessageCircle size={14} /> WhatsApp
         </Button>
       </div>

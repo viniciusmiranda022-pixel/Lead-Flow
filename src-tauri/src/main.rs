@@ -26,6 +26,7 @@ struct Lead {
     created_at: String,
     updated_at: String,
     last_contacted_at: Option<String>,
+    next_followup_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ struct LeadPayload {
     interest: String,
     stage: String,
     notes: String,
+    next_followup_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +109,39 @@ fn init_db(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| e.to_string())?;
+
+    ensure_column(conn, "leads", "next_followup_at", "TEXT")?;
+
+    Ok(())
+}
+
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
+    let mut stmt = conn
+        .prepare(&format!("PRAGMA table_info({})", table))
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let name: String = row.get(1).map_err(|e| e.to_string())?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<(), String> {
+    if !column_exists(conn, table, column)? {
+        conn.execute(
+            &format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, definition),
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -128,6 +163,7 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         created_at: row.get(13)?,
         updated_at: row.get(14)?,
         last_contacted_at: row.get(15)?,
+        next_followup_at: row.get(16)?,
     })
 }
 
@@ -135,7 +171,7 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
 fn list_leads() -> Result<Vec<Lead>, String> {
     let conn = open_db()?;
     let mut stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at FROM leads ORDER BY updated_at DESC")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_lead)
@@ -147,7 +183,7 @@ fn list_leads() -> Result<Vec<Lead>, String> {
 
 fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
     conn.query_row(
-        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at FROM leads WHERE id = ?",
+        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
         [id],
         row_to_lead,
     )
@@ -161,13 +197,21 @@ fn create_lead(payload: LeadPayload) -> Result<Lead, String> {
         return Err("Empresa é obrigatória".into());
     }
     let now = now_iso();
-    let stage = if STAGES.contains(&payload.stage.as_str()) { payload.stage.as_str() } else { "Novo" };
-    let last_contacted = if stage == "Contatado" { Some(now.clone()) } else { None };
+    let stage = if STAGES.contains(&payload.stage.as_str()) {
+        payload.stage.as_str()
+    } else {
+        "Novo"
+    };
+    let last_contacted = if stage == "Contatado" {
+        Some(now.clone())
+    } else {
+        None
+    };
 
     conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted],
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
@@ -186,8 +230,8 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     }
 
     conn.execute(
-        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, company_size=?8, industry=?9, interest=?10, stage=?11, notes=?12, updated_at=?13, last_contacted_at=?14 WHERE id=?15",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), payload.stage.trim(), payload.notes.trim(), now, last_contacted, id],
+        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, company_size=?8, industry=?9, interest=?10, stage=?11, notes=?12, updated_at=?13, last_contacted_at=?14, next_followup_at=?15 WHERE id=?16",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), payload.stage.trim(), payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -229,9 +273,13 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut by_status: HashMap<String, i64> = STAGES.iter().map(|s| (s.to_string(), 0)).collect();
-    let mut stmt = conn.prepare("SELECT stage, COUNT(*) FROM leads GROUP BY stage").map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT stage, COUNT(*) FROM leads GROUP BY stage")
+        .map_err(|e| e.to_string())?;
     let counts = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
         .map_err(|e| e.to_string())?;
     for row in counts {
         let (stage, qty) = row.map_err(|e| e.to_string())?;
@@ -253,7 +301,7 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut latest_stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at FROM leads ORDER BY updated_at DESC LIMIT 10")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
         .map_err(|e| e.to_string())?;
     let latest = latest_stmt
         .query_map([], row_to_lead)
@@ -261,7 +309,12 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(DashboardData { total, by_status, by_interest, latest })
+    Ok(DashboardData {
+        total,
+        by_status,
+        by_interest,
+        latest,
+    })
 }
 
 #[tauri::command]
@@ -278,6 +331,7 @@ fn import_legacy_db() -> Result<bool, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             list_leads,
             create_lead,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Plus } from 'lucide-react';
+import { Plus, TriangleAlert } from 'lucide-react';
 import { api } from './api';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { FiltersBar } from './components/FiltersBar';
@@ -13,6 +13,17 @@ import type { DashboardData, Lead, LeadPayload, Stage } from './types';
 import { STAGES } from './types';
 
 const chartColors = ['#0ea5e9', '#4f46e5', '#7c3aed', '#f59e0b', '#e11d48'];
+const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+function isFollowupPending(lead: Lead) {
+  if (!lead.next_followup_at || lead.stage === 'Perdido' || lead.stage === 'Pausado') {
+    return false;
+  }
+  const followupDate = new Date(`${lead.next_followup_at}T00:00:00`);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return followupDate <= today;
+}
 
 export function App() {
   const [page, setPage] = useState<'Dashboard' | 'Leads'>('Dashboard');
@@ -24,6 +35,8 @@ export function App() {
   const [editingLead, setEditingLead] = useState<Lead | undefined>(undefined);
   const [deleteLead, setDeleteLead] = useState<Lead | null>(null);
   const [lostLead, setLostLead] = useState<Lead | null>(null);
+  const [followupTick, setFollowupTick] = useState(0);
+  const [showFollowupToast, setShowFollowupToast] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -38,6 +51,13 @@ export function App() {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFollowupTick((prev) => prev + 1);
+    }, FOLLOWUP_CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   const interests = useMemo(() => Array.from(new Set(leads.map((lead) => lead.interest).filter(Boolean))).sort(), [leads]);
@@ -56,6 +76,17 @@ export function App() {
         filter.sort === 'Empresa' ? a.company.localeCompare(b.company) : b.updated_at.localeCompare(a.updated_at)
       );
   }, [leads, filter]);
+
+  const pendingFollowups = useMemo(
+    () => leads.filter(isFollowupPending).sort((a, b) => (a.next_followup_at ?? '').localeCompare(b.next_followup_at ?? '')),
+    [leads, followupTick]
+  );
+
+  useEffect(() => {
+    if (pendingFollowups.length > 0) {
+      setShowFollowupToast(true);
+    }
+  }, [pendingFollowups.length]);
 
   const saveLead = async (payload: LeadPayload) => {
     if (editingLead) {
@@ -97,6 +128,31 @@ export function App() {
 
       <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-8">
         {loading ? <p className="text-sm text-slate-500">Carregando...</p> : null}
+
+        {pendingFollowups.length > 0 ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <TriangleAlert size={16} />
+              Você tem {pendingFollowups.length} follow-up(s) pendente(s). Realize contato com esses leads.
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {pendingFollowups.slice(0, 5).map((lead) => (
+                <button
+                  key={lead.id}
+                  type="button"
+                  className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-left text-sm hover:bg-amber-100"
+                  onClick={() => {
+                    setPage('Leads');
+                    setFilter((prev) => ({ ...prev, search: lead.company, status: 'Todos' }));
+                  }}
+                >
+                  <strong>{lead.company}</strong> · follow-up em{' '}
+                  {new Date(`${lead.next_followup_at}T00:00:00`).toLocaleDateString('pt-BR')}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {page === 'Dashboard' && dashboard ? (
           <>
@@ -199,6 +255,25 @@ export function App() {
           </>
         ) : null}
       </main>
+
+      {showFollowupToast && pendingFollowups.length > 0 ? (
+        <div className="fixed bottom-5 right-5 z-40 max-w-sm rounded-lg border border-amber-300 bg-white p-3 shadow-xl">
+          <p className="text-sm font-semibold text-slate-900">Alerta de follow-up</p>
+          <p className="mt-1 text-sm text-slate-600">{pendingFollowups.length} lead(s) precisam de follow-up agora.</p>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="secondary" className="h-8" onClick={() => setShowFollowupToast(false)}>Fechar</Button>
+            <Button
+              className="h-8"
+              onClick={() => {
+                setPage('Leads');
+                setShowFollowupToast(false);
+              }}
+            >
+              Ver leads
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <LeadModal open={modalOpen} lead={editingLead} onClose={() => setModalOpen(false)} onSave={saveLead} />
       <ConfirmDialog
