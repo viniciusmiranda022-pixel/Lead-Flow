@@ -24,3 +24,4 @@ src-tauri/icons/
 # Local assets (se forem gerados)
 src/assets/*
 !src/assets/.gitkeep
+!src/assets/logo.svg

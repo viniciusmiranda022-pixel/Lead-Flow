@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Users, X } from 'lucide-react';
 import { api } from './api';
-import logo from './leadflow-logo.svg';
+import logo from './assets/logo.svg';
 import { Badge } from './components/Badge';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { FiltersBar } from './components/FiltersBar';
