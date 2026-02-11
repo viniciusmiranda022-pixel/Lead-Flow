@@ -17,6 +17,12 @@ function onlyDigits(value: string) {
   return (value || '').replace(/\D/g, '');
 }
 
+function formatLeadLocation(lead: Lead) {
+  const segmented = [lead.country, lead.state, lead.city].map((v) => (v || '').trim()).filter(Boolean);
+  if (segmented.length > 0) return segmented.join(' / ');
+  return lead.location || 'Sem localização';
+}
+
 export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const menuContainerRef = useRef<HTMLElement | null>(null);
@@ -100,7 +106,7 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
       <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
         <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><Mail size={14}/> <span className="text-slate-600">{lead.email || 'Sem e-mail'}</span></p>
         <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><Phone size={14}/> <span className="text-slate-600">{lead.phone || 'Sem telefone'}</span></p>
-        <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><MapPin size={14}/> <span className="text-slate-600">{lead.location || 'Sem localização'}</span></p>
+        <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><MapPin size={14}/> <span className="text-slate-600">{formatLeadLocation(lead)}</span></p>
       </div>
       <p className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600">
         <CalendarClock size={14} style={{ color: stageMeta.strong }} />
