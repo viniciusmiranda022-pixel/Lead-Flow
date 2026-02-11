@@ -125,8 +125,14 @@ def apply_global_styles() -> None:
             }
             .metric-value { font-size: 1.68rem; font-weight: 800; color: var(--text-primary); line-height: 1; }
 
-            .chart-card { padding: var(--space-3); min-height: 430px; }
-            .chart-title { font-size: 0.88rem; font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-2); }
+            .chart-card { padding: 14px 14px 10px; min-height: 372px; }
+            .chart-title {
+                font-size: 0.88rem;
+                font-weight: 700;
+                color: var(--text-secondary);
+                margin-bottom: 6px;
+                letter-spacing: 0.01em;
+            }
 
             .recent-list { padding: var(--space-3); }
             .recent-item {

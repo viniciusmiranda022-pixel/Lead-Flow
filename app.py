@@ -146,6 +146,9 @@ else:
 
 
 def render_dashboard() -> None:
+    chart_height = 320
+    chart_margin = dict(l=4, r=4, t=8, b=8)
+
     totals_raw = db.count_by_stage()
     totals_by_stage = {label: 0 for label in DISPLAY_STAGES}
     for raw_stage, qty in totals_raw.items():
@@ -175,19 +178,25 @@ def render_dashboard() -> None:
             y=DISPLAY_STAGES,
             orientation="h",
             text=stage_values,
-            color=DISPLAY_STAGES,
-            color_discrete_map=ui.STAGE_COLORS,
             labels={"x": "Total", "y": "Status"},
         )
-        fig_status.update_traces(textposition="outside", cliponaxis=False)
+        fig_status.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            marker_color="#2563eb",
+            marker_line_color="#1d4ed8",
+            marker_line_width=0.4,
+            hovertemplate="Status: %{y}<br>Total: %{x}<extra></extra>",
+        )
         fig_status.update_layout(
             showlegend=False,
-            height=340,
-            margin=dict(l=0, r=8, t=0, b=0),
+            height=chart_height,
+            margin=chart_margin,
             plot_bgcolor="white",
             paper_bgcolor="white",
-            xaxis=dict(showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False),
+            font=dict(color="#334155", size=13),
+            xaxis=dict(showgrid=True, gridcolor="#E2E8F0", zeroline=False, title=""),
+            yaxis=dict(showgrid=False, title=""),
         )
         st.plotly_chart(fig_status, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -195,7 +204,7 @@ def render_dashboard() -> None:
     with chart_right:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
         st.markdown('<div class="chart-title">Top interesses</div>', unsafe_allow_html=True)
-        top = db.top_interests(limit=6)
+        top = db.top_interests(limit=5)
         if top:
             labels = [row["interest"] for row in top]
             values = [row["total"] for row in top]
@@ -203,23 +212,34 @@ def render_dashboard() -> None:
                 x=labels,
                 y=values,
                 text=values,
-                color=labels,
-                color_discrete_sequence=["#2563eb", "#60a5fa", "#93c5fd", "#bfdbfe", "#1d4ed8", "#3b82f6"],
+                color=values,
+                color_continuous_scale=["#DBEAFE", "#93C5FD", "#2563EB"],
                 labels={"x": "Interesse", "y": "Leads"},
             )
-            fig_interest.update_traces(textposition="outside", cliponaxis=False)
+            fig_interest.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                marker_line_color="#1d4ed8",
+                marker_line_width=0.35,
+                hovertemplate="Interesse: %{x}<br>Leads: %{y}<extra></extra>",
+            )
+            fig_interest.update_coloraxes(showscale=False)
             fig_interest.update_layout(
                 showlegend=False,
-                height=340,
-                margin=dict(l=0, r=8, t=0, b=0),
+                height=chart_height,
+                margin=chart_margin,
                 plot_bgcolor="white",
                 paper_bgcolor="white",
-                xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=False, zeroline=False),
+                font=dict(color="#334155", size=13),
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor="#E2E8F0", zeroline=False, title=""),
             )
             st.plotly_chart(fig_interest, use_container_width=True)
         else:
-            st.info("Sem interesses cadastrados ainda.")
+            st.markdown(
+                '<div style="height:320px; display:flex; align-items:center; justify-content:center; border:1px dashed #E2E8F0; border-radius:12px; color:#64748B; font-size:0.9rem;">Sem interesses cadastrados ainda.</div>',
+                unsafe_allow_html=True,
+            )
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="section-title">Últimos 10 atualizados</div>', unsafe_allow_html=True)
