@@ -1,103 +1,67 @@
-# Lead Flow (App local de gestão de leads)
+# LeadFlow Desktop (Tauri + React)
 
-Aplicativo local para gestão de leads (não é CRM), feito com **Python 3.11+**, **Streamlit**, **Plotly** e **SQLite**.
+Aplicativo desktop instalável para gestão local de leads com visual SaaS premium.
 
-## Funcionalidades
+## Stack
 
-- Navegação com telas de **Dashboard** e **Leads**.
-- CRUD completo de leads com validações.
-- Persistência em SQLite.
-- Tema customizado em `.streamlit/config.toml`.
-- Empacotamento para executável Windows (`PyInstaller --onefile`).
+- **Tauri 2 (Rust)** para shell desktop e comandos locais.
+- **React + Vite + TypeScript** no frontend.
+- **Tailwind + componentes estilo shadcn/ui** para UI.
+- **lucide-react** para ícones.
+- **SQLite (rusqlite/bundled)** para persistência local.
 
-## Estrutura do projeto
+## Regras de negócio preservadas
+
+- Stages: **Novo, Contatado, Apresentação, Pausado, Perdido**.
+- CRUD completo de leads.
+- `created_at` e `updated_at` automáticos.
+- `last_contacted_at` é definido quando o lead passa para **Contatado**.
+- Campos mantidos: empresa, contato, cargo, email, telefone, linkedin, país/cidade, tamanho, indústria, interesse, observações, status.
+
+## Persistência local
+
+- Banco principal: `%AppData%/LeadFlow/leads.db` (no Windows).
+- Tabela é criada automaticamente no primeiro run.
+- Botão **Importar dados** na página de Leads copia `./leads.db` legado (versão Streamlit) para o novo caminho quando encontrado.
+
+## Rodar em desenvolvimento
+
+### Pré-requisitos
+
+- Node.js 20+
+- Rust + Cargo
+- Tauri prerequisites para Windows (WebView2, Build Tools)
+
+### Comandos
+
+```bash
+npm install
+npm run tauri dev
+```
+
+## Build instalável `.exe` (Windows)
+
+```bash
+npm install
+npm run tauri build
+```
+
+Saída esperada do instalador NSIS:
+
+- `src-tauri/target/release/bundle/nsis/LeadFlow_1.0.0_x64-setup.exe`
+
+Após instalar, o app roda como desktop nativo sem terminal.
+
+## Estrutura
 
 ```bash
 .
-├── .streamlit/
-│   └── config.toml
-├── app.py
-├── ui.py
-├── db.py
-├── launcher.py
-├── build_onefile.ps1
-├── build_onefile.bat
-├── requirements.txt
+├── src/                 # React UI
+│   ├── components/
+│   ├── App.tsx
+│   └── api.ts
+├── src-tauri/
+│   ├── src/main.rs      # commands + camada SQLite local
+│   └── tauri.conf.json
 └── README.md
 ```
-
-## Rodando em desenvolvimento
-
-1. Criar e ativar ambiente virtual.
-
-PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-CMD:
-
-```cmd
-python -m venv .venv
-.venv\Scripts\activate.bat
-```
-
-2. Instalar dependências:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Executar app:
-
-```bash
-streamlit run app.py
-```
-
-## Persistência de dados
-
-- O banco SQLite é resolvido por `db.py` em:
-  - `LEADFLOW_DATA_DIR\leads.db` (quando `LEADFLOW_DATA_DIR` está definida), ou
-  - fallback para pasta do projeto.
-- No executável Windows, o `launcher.py` define automaticamente:
-  - `%LOCALAPPDATA%\LeadFlow\leads.db`
-
-## Gerar executável Windows (onefile)
-
-### Opção 1: PowerShell
-
-```powershell
-.\build_onefile.ps1
-```
-
-### Opção 2: CMD (sem depender de ExecutionPolicy)
-
-```cmd
-build_onefile.bat
-```
-
-Os scripts de build fazem automaticamente:
-
-- criação de `.venv` (se não existir),
-- instalação de `requirements.txt` + `pyinstaller`,
-- build com `PyInstaller --onefile` usando `launcher.py`,
-- inclusão de `app.py`, `ui.py`, `db.py` e `.streamlit/config.toml` no bundle,
-- coleta de dependências com `--collect-all streamlit` e `--collect-all plotly`.
-
-## Executar o executável
-
-Após o build:
-
-```cmd
-dist\LeadFlow.exe
-```
-
-Ao iniciar, o launcher:
-
-- prepara `%LOCALAPPDATA%\LeadFlow`,
-- define `LEADFLOW_DATA_DIR`,
-- garante `.streamlit/config.toml` no diretório de execução,
-- sobe o Streamlit localmente,
-- abre o navegador em `http://localhost:8501`.

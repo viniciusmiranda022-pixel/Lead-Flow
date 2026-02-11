@@ -1,0 +1,30 @@
+export const STAGES = ['Novo', 'Contatado', 'Apresentação', 'Pausado', 'Perdido'] as const;
+export type Stage = (typeof STAGES)[number];
+
+export interface Lead {
+  id: number;
+  company: string;
+  contact_name: string;
+  job_title: string;
+  email: string;
+  phone: string;
+  linkedin: string;
+  location: string;
+  company_size: string;
+  industry: string;
+  interest: string;
+  stage: Stage;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  last_contacted_at: string | null;
+}
+
+export interface LeadPayload extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at'> {}
+
+export interface DashboardData {
+  total: number;
+  by_status: Record<string, number>;
+  by_interest: Array<{ name: string; value: number }>;
+  latest: Lead[];
+}

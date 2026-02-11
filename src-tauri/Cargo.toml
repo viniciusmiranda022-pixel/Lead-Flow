@@ -1,0 +1,20 @@
+[package]
+name = "leadflow"
+version = "1.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.1.1", features = [] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+thiserror = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
