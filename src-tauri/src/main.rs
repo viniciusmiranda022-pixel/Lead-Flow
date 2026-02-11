@@ -172,7 +172,7 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
 }
 
 fn normalize_csv_header(s: &str) -> String {
-    let s = s.trim().to_lowercase();
+    let s = s.trim().trim_start_matches('\u{feff}').to_lowercase();
 
     // remove acentos comuns pt-br sem dependência extra
     let mut out = String::with_capacity(s.len());
@@ -337,25 +337,29 @@ fn ensure_column(
 }
 
 fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
+    let text = |index| -> rusqlite::Result<String> {
+        Ok(row.get::<_, Option<String>>(index)?.unwrap_or_default())
+    };
+
     Ok(Lead {
         id: row.get(0)?,
-        company: row.get(1)?,
-        contact_name: row.get(2)?,
-        job_title: row.get(3)?,
-        email: row.get(4)?,
-        phone: row.get(5)?,
-        linkedin: row.get(6)?,
-        location: row.get(7)?,
-        country: row.get(8)?,
-        state: row.get(9)?,
-        city: row.get(10)?,
-        company_size: row.get(11)?,
-        industry: row.get(12)?,
-        interest: row.get(13)?,
-        stage: row.get(14)?,
-        notes: row.get(15)?,
-        created_at: row.get(16)?,
-        updated_at: row.get(17)?,
+        company: text(1)?,
+        contact_name: text(2)?,
+        job_title: text(3)?,
+        email: text(4)?,
+        phone: text(5)?,
+        linkedin: text(6)?,
+        location: text(7)?,
+        country: text(8)?,
+        state: text(9)?,
+        city: text(10)?,
+        company_size: text(11)?,
+        industry: text(12)?,
+        interest: text(13)?,
+        stage: text(14)?,
+        notes: text(15)?,
+        created_at: text(16)?,
+        updated_at: text(17)?,
         last_contacted_at: row.get(18)?,
         next_followup_at: row.get(19)?,
     })
