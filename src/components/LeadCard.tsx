@@ -1,6 +1,6 @@
 import { Mail, MapPin, MoreVertical, Phone, Trash2, Pencil, MessageCircle, CalendarClock } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { STAGES, type Lead, type Stage } from '../types';
 import { Badge } from './Badge';
 import { Button } from './ui/Button';
@@ -19,11 +19,29 @@ function onlyDigits(value: string) {
 
 export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   const [showMenu, setShowMenu] = useState(false);
+  const menuContainerRef = useRef<HTMLElement | null>(null);
   const stageMeta = getStageMeta(lead.stage);
 
   const phoneDigits = onlyDigits(lead.phone);
   const hasPhone = phoneDigits.length > 0;
   const hasEmail = lead.email.trim().length > 0;
+
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!menuContainerRef.current) return;
+      if (!menuContainerRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showMenu]);
 
   const handleOpenWhatsApp = async () => {
     if (!hasPhone) return;
@@ -41,18 +59,36 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   };
 
   return (
-    <article className="group relative lf-card lf-card-hover overflow-hidden p-4" style={{ borderLeft: `4px solid ${stageMeta.strong}` }}>
+    <article ref={menuContainerRef} className="group relative lf-card lf-card-hover overflow-hidden p-4" style={{ borderLeft: `4px solid ${stageMeta.strong}` }}>
       <span className="absolute left-0 top-0 h-10 w-1 rounded-r-full" style={{ background: stageMeta.strong }} />
       <button
         onClick={() => setShowMenu((v) => !v)}
         className="absolute right-3 top-3 hidden rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 group-hover:inline-flex"
+        aria-label="Ações do lead"
+        aria-expanded={showMenu}
       >
         <MoreVertical size={16} />
       </button>
       {showMenu ? (
         <div className="absolute right-3 top-12 z-10 w-32 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-          <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50" onClick={() => onEdit(lead)}><Pencil size={14}/>Editar</button>
-          <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-rose-600 hover:bg-rose-50" onClick={() => onDelete(lead)}><Trash2 size={14}/>Excluir</button>
+          <button
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50"
+            onClick={() => {
+              setShowMenu(false);
+              onEdit(lead);
+            }}
+          >
+            <Pencil size={14} />Editar
+          </button>
+          <button
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-rose-600 hover:bg-rose-50"
+            onClick={() => {
+              setShowMenu(false);
+              onDelete(lead);
+            }}
+          >
+            <Trash2 size={14} />Excluir
+          </button>
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 pr-8">

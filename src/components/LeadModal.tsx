@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { COMPANY_SIZES, INDUSTRIES, INTERESTS } from '../constants/options';
+import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_LOCATIONS } from '../constants/options';
 import { STAGES } from '../types';
 import type { Lead, LeadPayload, Stage } from '../types';
 import { Button } from './ui/Button';
@@ -65,6 +65,8 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
   const [interestCustom, setInterestCustom] = useState('');
   const [industryOption, setIndustryOption] = useState('');
   const [industryCustom, setIndustryCustom] = useState('');
+  const [locationOption, setLocationOption] = useState('');
+  const [locationCustom, setLocationCustom] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -97,6 +99,10 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
       const isKnownIndustry = INDUSTRIES.includes(nextPayload.industry as (typeof INDUSTRIES)[number]);
       setIndustryOption(isKnownIndustry ? nextPayload.industry : nextPayload.industry ? 'Outros' : '');
       setIndustryCustom(isKnownIndustry ? '' : nextPayload.industry);
+
+      const isKnownLocation = LATAM_LOCATIONS.includes(nextPayload.location as (typeof LATAM_LOCATIONS)[number]);
+      setLocationOption(isKnownLocation ? nextPayload.location : nextPayload.location ? 'Outro' : '');
+      setLocationCustom(isKnownLocation ? '' : nextPayload.location);
     }
   }, [open, lead]);
 
@@ -138,8 +144,9 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
     try {
       const interest = interestOption === 'Outro' ? interestCustom.trim() || 'Outro' : interestOption;
       const industry = industryOption === 'Outros' ? industryCustom.trim() || 'Outros' : industryOption;
+      const location = locationOption === 'Outro' ? locationCustom.trim() || 'Outro' : locationOption;
 
-      await onSave({ ...payload, interest, industry });
+      await onSave({ ...payload, interest, industry, location });
       onClose();
     } finally {
       setLoading(false);
@@ -164,8 +171,7 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
               { key: 'job_title', label: 'Cargo', placeholder: 'Ex: Head de Marketing', required: false },
               { key: 'email', label: 'E-mail', placeholder: 'email@empresa.com', required: true },
               { key: 'phone', label: 'Telefone', placeholder: '+55 (11) 99999-9999', required: true },
-              { key: 'linkedin', label: 'LinkedIn', placeholder: 'linkedin.com/in/...', required: false },
-              { key: 'location', label: 'País/Cidade', placeholder: 'Brasil, São Paulo', required: false }
+              { key: 'linkedin', label: 'LinkedIn', placeholder: 'linkedin.com/in/...', required: false }
             ].map((field) => (
               <label key={field.key} className="space-y-1 text-xs font-medium text-slate-600">
                 {field.label}
@@ -179,6 +185,25 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
                 {errors[field.key] ? <p className="error-text">{errors[field.key]}</p> : null}
               </label>
             ))}
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              País/Cidade
+              <select className="lf-input lf-focusable" value={locationOption} onChange={(e) => setLocationOption(e.target.value)}>
+                <option value="" disabled>
+                  Selecione...
+                </option>
+                {LATAM_LOCATIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {locationOption === 'Outro' && (
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                País/Cidade personalizado
+                <Input className="lf-input lf-focusable" value={locationCustom} onChange={(e) => setLocationCustom(e.target.value)} placeholder="Ex: El Salvador, San Salvador" />
+              </label>
+            )}
             <label className="space-y-1 text-xs font-medium text-slate-600">
               Tamanho
               <select className="lf-input lf-focusable" value={payload.company_size} onChange={(e) => set('company_size', e.target.value)}>
