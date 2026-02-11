@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+ codex/add-lost-lead-screen-k4cimx
 import { BriefcaseBusiness, FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
+
+import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
+ main
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -17,12 +21,19 @@ import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } f
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
+ codex/add-lost-lead-screen-k4cimx
 type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Relatórios';
+
+type Page = 'Dashboard' | 'Leads' | 'Leads Perdidos' | 'Relatórios';
+ main
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Leads', icon: Users },
+ codex/add-lost-lead-screen-k4cimx
   { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
+
+ main
   { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Relatórios', icon: FileBarChart }
 ];
@@ -101,6 +112,7 @@ export function App() {
     () => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads]
   );
+ codex/add-lost-lead-screen-k4cimx
   const wonLeads = useMemo(
     () => [...leads].filter((lead) => lead.stage === 'Ganho').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads]
@@ -112,6 +124,8 @@ export function App() {
     return wonLeads.filter((lead) => [lead.company, lead.contact_name].join(' ').toLowerCase().includes(search));
   }, [wonLeads, wonSearch]);
 
+
+ main
 
   useEffect(() => {
     if (pendingFollowups.length > 0) {
@@ -384,6 +398,7 @@ export function App() {
             </>
           ) : null}
 
+ codex/add-lost-lead-screen-k4cimx
           {page === 'Carteira de Clientes' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -427,6 +442,8 @@ export function App() {
             </>
           ) : null}
 
+
+ main
           {page === 'Leads Perdidos' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
