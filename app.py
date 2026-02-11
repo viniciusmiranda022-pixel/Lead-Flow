@@ -158,13 +158,18 @@ def render_dashboard() -> None:
     for raw_stage, qty in totals_raw.items():
         totals_by_stage[to_display_stage(raw_stage)] = qty
 
+    st.markdown(
+        '<div class="page-hero"><div><div class="page-kicker">Visão geral</div><h1>📊 Dashboard comercial</h1><p>Acompanhe pipeline, gargalos e oportunidades de conversão em tempo real.</p></div></div>',
+        unsafe_allow_html=True,
+    )
+
     card_data = [
-        ("Total", db.total_leads(), "TL", "#ffffff"),
-        ("Novo", totals_by_stage["Novo"], "NV", "#ffffff"),
-        ("Contatado", totals_by_stage["Contatado"], "CT", "#ffffff"),
-        ("Apresentação", totals_by_stage["Apresentação"], "AP", "#ffffff"),
-        ("Pausado", totals_by_stage["Pausado"], "PZ", "#ffffff"),
-        ("Perdido", totals_by_stage["Perdido"], "PD", "#ffffff"),
+        ("Total", db.total_leads(), "📁", "#ffffff"),
+        ("Novo", totals_by_stage["Novo"], "✨", "#ffffff"),
+        ("Contatado", totals_by_stage["Contatado"], "📞", "#ffffff"),
+        ("Apresentação", totals_by_stage["Apresentação"], "🖥️", "#ffffff"),
+        ("Pausado", totals_by_stage["Pausado"], "⏸️", "#ffffff"),
+        ("Perdido", totals_by_stage["Perdido"], "🚫", "#ffffff"),
     ]
     card_stage_filters = {
         "Total": "Todos",
@@ -185,7 +190,7 @@ def render_dashboard() -> None:
 
     with chart_left:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.markdown('<div class="chart-title">Leads por status</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">🧭 Leads por status</div>', unsafe_allow_html=True)
         stage_values = [totals_by_stage[label] for label in DISPLAY_STAGES]
         fig_status = px.bar(
             x=stage_values,
@@ -217,7 +222,7 @@ def render_dashboard() -> None:
 
     with chart_right:
         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.markdown('<div class="chart-title">Top interesses</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-title">🔥 Top interesses</div>', unsafe_allow_html=True)
         top = db.top_interests(limit=5)
         if top:
             labels = [row["interest"] for row in top]
@@ -256,7 +261,7 @@ def render_dashboard() -> None:
             )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="section-title">Últimos 10 atualizados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🕒 Últimos 10 atualizados</div>', unsafe_allow_html=True)
     st.markdown('<div class="recent-list">', unsafe_allow_html=True)
     recent = db.recent_updates(10)
     if not recent:
@@ -383,7 +388,10 @@ def apply_dashboard_prefilter() -> None:
 def render_leads_screen() -> None:
     apply_dashboard_prefilter()
 
-    st.markdown('<div class="lead-toolbar-title">Leads</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-hero"><div><div class="page-kicker">Gestão</div><h1>🧾 Leads</h1><p>Encontre contatos rapidamente, atualize status em poucos cliques e acelere follow-up.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     toolbar = st.columns([3.4, 2.6])
 
     with toolbar[0]:
@@ -394,12 +402,12 @@ def render_leads_screen() -> None:
     with toolbar[1]:
         filters = st.columns(3)
         with filters[0]:
-            stage_filter_display = selection_chip("Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip", compact=True)
+            stage_filter_display = selection_chip("🧭 Status", ["Todos"] + DISPLAY_STAGES, "Todos", "stage_filter_chip", compact=True)
         with filters[1]:
-            interest_filter = selection_chip("Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip", compact=True)
+            interest_filter = selection_chip("🎯 Interesse", ["Todos"] + db.get_interest_options(), "Todos", "interest_filter_chip", compact=True)
         with filters[2]:
             sort_by = st.selectbox(
-                "Ordenação",
+                "↕️ Ordenação",
                 ["Recentes", "Nome da empresa"],
                 key="sort_filter_chip",
                 label_visibility="collapsed",
@@ -407,7 +415,7 @@ def render_leads_screen() -> None:
 
     actions = st.columns([4.2, 1.3])
     with actions[1]:
-        if st.button("+ Novo Lead", use_container_width=True, type="primary"):
+        if st.button("✨ Novo Lead", use_container_width=True, type="primary"):
             st.session_state.show_new_lead = True
 
     if st.session_state.show_new_lead:
