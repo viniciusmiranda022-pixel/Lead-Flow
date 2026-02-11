@@ -95,8 +95,17 @@ def apply_global_styles() -> None:
                 margin-bottom: var(--space-3);
             }
 
-            div[data-testid="stRadio"] > div { gap: var(--space-1); justify-content: end; }
-            div[data-testid="stRadio"] label {
+            div[data-testid="stSegmentedControl"] {
+                display: flex;
+                justify-content: flex-end;
+            }
+            div[data-testid="stSegmentedControl"] [role="radiogroup"] {
+                gap: var(--space-1);
+                background: transparent;
+                border: 0;
+                padding: 0;
+            }
+            div[data-testid="stSegmentedControl"] button {
                 border: 1px solid var(--line);
                 border-radius: 999px;
                 padding: 6px 14px;
@@ -104,14 +113,24 @@ def apply_global_styles() -> None:
                 min-height: 36px;
                 transition: all 0.2s ease;
             }
-            div[data-testid="stRadio"] label:has(input:checked) {
+            div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
                 border-color: var(--primary);
                 background: #DBEAFE;
                 box-shadow: inset 0 0 0 1px #BFDBFE;
-            }
-            div[data-testid="stRadio"] label:has(input:checked) p {
                 color: #1E3A8A !important;
                 font-weight: 700 !important;
+            }
+
+            .filter-chip-wrap {
+                margin-top: var(--space-1);
+            }
+            .filter-chip-title {
+                font-size: 0.74rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                font-weight: 700;
+                color: var(--text-secondary);
+                margin-bottom: 4px;
             }
 
             .section-title {
@@ -132,6 +151,11 @@ def apply_global_styles() -> None:
                 min-height: 108px;
                 display: grid;
                 gap: var(--space-1);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .metric-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
             }
             .metric-head { display: flex; align-items: center; gap: var(--space-1); }
             .metric-icon {
@@ -167,6 +191,11 @@ def apply_global_styles() -> None:
                 box-shadow: var(--shadow-soft);
                 padding: var(--space-3);
                 min-height: 430px;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .chart-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
             }
             .chart-title {
                 font-size: 0.88rem;
@@ -192,6 +221,10 @@ def apply_global_styles() -> None:
                 justify-content: space-between;
                 align-items: center;
                 gap: var(--space-2);
+                transition: box-shadow 0.2s ease;
+            }
+            .recent-item:hover {
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
             }
             .recent-left { display: flex; align-items: center; gap: var(--space-2); }
             .recent-avatar {
@@ -235,6 +268,11 @@ def apply_global_styles() -> None:
                 padding: var(--space-3);
                 margin-bottom: var(--space-3);
                 background: var(--surface);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .lead-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
             }
             .lead-row-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
             .lead-company { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); }
@@ -283,14 +321,14 @@ def apply_global_styles() -> None:
             }
 
 
-            div[data-testid="stSegmentedControl"] button {
+            div[data-testid="stHorizontalBlock"] div[data-testid="stSegmentedControl"] button {
                 border-radius: 999px !important;
                 border: 1px solid var(--line) !important;
                 min-height: 34px;
                 font-size: 0.76rem !important;
                 font-weight: 600 !important;
             }
-            div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            div[data-testid="stHorizontalBlock"] div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
                 background: #DBEAFE !important;
                 border-color: var(--primary) !important;
                 color: #1E3A8A !important;
@@ -330,7 +368,7 @@ def apply_global_styles() -> None:
             @media (max-width: 640px) {
                 div[data-testid="column"] { min-width: 100% !important; flex: 1 1 100% !important; }
                 div[data-testid="stHorizontalBlock"]:has(.lf-header-row) { top: var(--space-1); }
-                div[data-testid="stRadio"] > div { justify-content: start; }
+                div[data-testid="stSegmentedControl"] { justify-content: start; }
             }
         </style>
         """,
@@ -354,12 +392,13 @@ def render_top_header(current_screen: str) -> str:
             unsafe_allow_html=True,
         )
     with right:
-        screen = st.radio(
+        screen = st.segmented_control(
             "Navegação",
             ["Dashboard", "Leads"],
-            index=0 if current_screen == "Dashboard" else 1,
-            horizontal=True,
+            selection_mode="single",
+            default=current_screen if current_screen in {"Dashboard", "Leads"} else "Dashboard",
             label_visibility="collapsed",
+            key="top_nav_segmented",
         )
     return screen
 
