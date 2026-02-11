@@ -234,6 +234,16 @@ fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key:
         .to_string()
 }
 
+fn csv_delimiter(csv_content: &str) -> u8 {
+    // Detecta delimitador olhando a primeira linha (header)
+    let first_line = csv_content.lines().next().unwrap_or("");
+
+    let commas = first_line.matches(',').count();
+    let semicolons = first_line.matches(';').count();
+
+    if semicolons > commas { b';' } else { b',' }
+}
+
 fn app_db_path() -> Result<PathBuf, String> {
     let base = if cfg!(target_os = "windows") {
         data_dir().ok_or("Não foi possível resolver AppData")?
