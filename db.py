@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-DB_PATH = "leads.db"
+
+def resolve_db_path() -> str:
+    """Resolve caminho persistente do SQLite com fallback para pasta do projeto."""
+    data_dir = os.environ.get("LEADFLOW_DATA_DIR")
+    if data_dir:
+        base_dir = Path(data_dir).expanduser()
+    else:
+        base_dir = Path(__file__).resolve().parent
+
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return str(base_dir / "leads.db")
+
+
+DB_PATH = resolve_db_path()
 STAGES = [
     "Novo",
     "Contatado",
