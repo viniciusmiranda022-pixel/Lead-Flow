@@ -223,9 +223,19 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
 
     let mut mapped = HashMap::new();
     for (field, options) in aliases {
+ codex/fix-unclosed-delimiter-in-main.rs-2kr8gw
         for &option in options {
             if let Some(&index) = index_map.get(option) {
                 mapped.insert(field.to_string(), index);
+
+        for option in options {
+ codex/fix-unclosed-delimiter-in-main.rs-855rlh
+            if let Some(index) = index_map.get(*option) {
+
+            if let Some(index) = index_map.get(option) {
+ main
+                mapped.insert(field.to_string(), *index);
+ main
                 break;
             }
         }
