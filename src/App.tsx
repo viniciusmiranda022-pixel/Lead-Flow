@@ -129,7 +129,11 @@ export function App() {
         }`}
       >
         <div className="mb-8 flex items-center justify-between">
+ codex/add-product-logo-and-hamburger-menu-7tn5vs
           <img src={logo} alt="LeadFlow" className="h-10 w-[220px] object-contain object-left" />
+
+          <img src={logo} alt="LeadFlow" className="h-10 w-auto" />
+ main
           <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}>
             <X size={18} />
           </button>
@@ -165,7 +169,11 @@ export function App() {
               </button>
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{page}</p>
             </div>
+ codex/add-product-logo-and-hamburger-menu-7tn5vs
             <img src={logo} alt="LeadFlow" className="h-8 w-[176px] object-contain object-left md:hidden" />
+
+            <img src={logo} alt="LeadFlow" className="h-8 w-auto md:hidden" />
+ main
           </div>
         </header>
 

@@ -1,3 +1,4 @@
+ codex/add-product-logo-and-hamburger-menu-7tn5vs
 <svg
   width="420"
   height="120"
@@ -47,4 +48,25 @@
   >
     LeadFlow
   </text>
+
+<svg width="260" height="64" viewBox="0 0 260 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="leadflowLogoTitle leadflowLogoDesc">
+  <title id="leadflowLogoTitle">LeadFlow Logo</title>
+  <desc id="leadflowLogoDesc">Setas ascendentes e texto LeadFlow em tons de azul.</desc>
+  <defs>
+    <linearGradient id="iconGradient" x1="6" y1="52" x2="70" y2="6" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="textGradient" x1="76" y1="12" x2="254" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D4ED8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M8 50C16 51 23 45 26 39L35 30C37 28 40 27 42 28C44 29 45 32 44 35L43 37L52 29C54 27 57 26 59 28C61 30 61 33 59 35L38 56C30 63 18 62 10 56L8 54V50Z" fill="url(#iconGradient)"/>
+  <path d="M6 44C16 53 35 53 52 42C62 36 70 27 76 17" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+  <path d="M73 10L79 18L69 20" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="88" y="44" fill="url(#textGradient)" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="-1.2">LeadFlow</text>
+ main
 </svg>
