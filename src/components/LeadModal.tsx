@@ -25,7 +25,8 @@ const emptyPayload: LeadPayload = {
   industry: '',
   interest: '',
   stage: 'Novo',
-  notes: ''
+  notes: '',
+  next_followup_at: ''
 };
 
 export function LeadModal({ open, lead, onClose, onSave }: Props) {
@@ -51,7 +52,8 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
             industry: lead.industry,
             interest: lead.interest,
             stage: lead.stage,
-            notes: lead.notes
+            notes: lead.notes,
+            next_followup_at: lead.next_followup_at ?? ''
           }
         : { ...emptyPayload };
 
@@ -189,6 +191,15 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
               value={payload.stage}
               options={STAGES.map((s) => ({ label: s, value: s }))}
               onChange={(e) => set('stage', e.target.value)}
+            />
+          </label>
+          <label className="space-y-1 text-xs font-medium text-slate-600">
+            Próximo follow-up
+            <Input
+              type="date"
+              className="lf-input lf-focusable"
+              value={payload.next_followup_at}
+              onChange={(e) => set('next_followup_at', e.target.value)}
             />
           </label>
           <label className="space-y-1 text-xs font-medium text-slate-600 md:col-span-2">

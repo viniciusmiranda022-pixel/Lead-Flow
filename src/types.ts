@@ -18,9 +18,13 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   last_contacted_at: string | null;
+  next_followup_at: string | null;
 }
 
-export interface LeadPayload extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at'> {}
+export interface LeadPayload
+  extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at' | 'next_followup_at'> {
+  next_followup_at: string;
+}
 
 export interface DashboardData {
   total: number;
