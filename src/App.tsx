@@ -124,12 +124,12 @@ export function App() {
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-200 bg-white p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-40 w-80 border-r border-slate-200 bg-white p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="mb-8 flex items-center justify-between">
-          <img src={logo} alt="LeadFlow" className="h-10 w-[220px] object-contain object-left" />
+          <img src={logo} alt="LeadFlow" className="h-14 w-[300px] object-contain object-left" />
 
           <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}>
             <X size={18} />
@@ -157,16 +157,16 @@ export function App() {
         </nav>
       </aside>
 
-      <div className="md:pl-72">
+      <div className="md:pl-80">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu size={18} />
               </button>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{page}</p>
+              <p className="truncate text-sm font-semibold uppercase tracking-wide text-slate-500">{page}</p>
             </div>
-            <img src={logo} alt="LeadFlow" className="h-8 w-[176px] object-contain object-left md:hidden" />
+            <img src={logo} alt="LeadFlow" className="h-12 w-[240px] max-w-[55vw] object-contain object-left md:hidden" />
 
           </div>
         </header>
