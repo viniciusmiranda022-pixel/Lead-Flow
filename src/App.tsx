@@ -101,6 +101,7 @@ export function App() {
   const filteredLeads = useMemo(() => {
     const normalizedSearch = filter.search.toLowerCase();
     return [...leads]
+      .filter((lead) => lead.stage !== 'Perdido' && lead.stage !== 'Ganho')
       .filter((lead) => (filter.status === 'Todos' ? true : lead.stage === filter.status))
       .filter((lead) => (filter.interest === 'Todos' ? true : lead.interest === filter.interest))
       .filter((lead) =>
