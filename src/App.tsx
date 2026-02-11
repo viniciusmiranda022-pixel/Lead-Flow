@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+ codex/add-lost-lead-screen-k4cimx
+import { BriefcaseBusiness, FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
+
 import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
+ main
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -17,17 +21,25 @@ import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } f
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
+ codex/add-lost-lead-screen-k4cimx
+type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Relatórios';
+
 type Page = 'Dashboard' | 'Leads' | 'Leads Perdidos' | 'Relatórios';
+ main
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Leads', icon: Users },
+ codex/add-lost-lead-screen-k4cimx
+  { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
+
+ main
   { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Relatórios', icon: FileBarChart }
 ];
 
 function isFollowupPending(lead: Lead) {
-  if (!lead.next_followup_at || lead.stage === 'Perdido' || lead.stage === 'Pausado') {
+  if (!lead.next_followup_at || lead.stage === 'Perdido' || lead.stage === 'Pausado' || lead.stage === 'Ganho') {
     return false;
   }
   const followupDate = new Date(`${lead.next_followup_at}T00:00:00`);
@@ -49,6 +61,7 @@ export function App() {
   const [lostLead, setLostLead] = useState<Lead | null>(null);
   const [followupTick, setFollowupTick] = useState(0);
   const [showFollowupToast, setShowFollowupToast] = useState(false);
+  const [wonSearch, setWonSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -99,6 +112,20 @@ export function App() {
     () => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads]
   );
+ codex/add-lost-lead-screen-k4cimx
+  const wonLeads = useMemo(
+    () => [...leads].filter((lead) => lead.stage === 'Ganho').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [leads]
+  );
+
+  const filteredWonLeads = useMemo(() => {
+    const search = wonSearch.trim().toLowerCase();
+    if (!search) return wonLeads;
+    return wonLeads.filter((lead) => [lead.company, lead.contact_name].join(' ').toLowerCase().includes(search));
+  }, [wonLeads, wonSearch]);
+
+
+ main
 
   useEffect(() => {
     if (pendingFollowups.length > 0) {
@@ -123,6 +150,9 @@ export function App() {
     }
     await api.updateStage(lead.id, stage);
     await refresh();
+    if (stage === 'Ganho') {
+      setPage('Carteira de Clientes');
+    }
   };
 
   const statusChartData = STAGES.map((stage) => ({ stage, total: dashboard?.by_status[stage] ?? 0, color: stageColorMap[stage] }));
@@ -368,6 +398,52 @@ export function App() {
             </>
           ) : null}
 
+ codex/add-lost-lead-screen-k4cimx
+          {page === 'Carteira de Clientes' ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-900">Carteira de Clientes</h1>
+                  <p className="text-sm text-slate-500">Leads ganhos e convertidos para relacionamento contínuo.</p>
+                </div>
+                <Badge kind="status" value="Ganho" />
+              </div>
+
+              <div className="lf-card p-4">
+                <label className="space-y-1 text-xs font-medium text-slate-600">
+                  Buscar lead ganho
+                  <input
+                    className="lf-input lf-focusable"
+                    value={wonSearch}
+                    onChange={(event) => setWonSearch(event.target.value)}
+                    placeholder="Digite nome da empresa ou contato..."
+                  />
+                </label>
+              </div>
+
+              <section className="grid gap-3">
+                {filteredWonLeads.length === 0 ? (
+                  <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead ganho encontrado.</div>
+                ) : (
+                  filteredWonLeads.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onEdit={(row) => {
+                        setEditingLead(row);
+                        setModalOpen(true);
+                      }}
+                      onDelete={(row) => setDeleteLead(row)}
+                      onUpdateStage={updateStage}
+                    />
+                  ))
+                )}
+              </section>
+            </>
+          ) : null}
+
+
+ main
           {page === 'Leads Perdidos' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">

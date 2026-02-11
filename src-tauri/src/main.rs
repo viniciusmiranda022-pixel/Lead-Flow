@@ -7,7 +7,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
 
-const STAGES: [&str; 5] = ["Novo", "Contatado", "Apresentação", "Pausado", "Perdido"];
+const STAGES: [&str; 6] = ["Novo", "Contatado", "Apresentação", "Ganho", "Pausado", "Perdido"];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Lead {
@@ -19,6 +19,9 @@ struct Lead {
     phone: String,
     linkedin: String,
     location: String,
+    country: String,
+    state: String,
+    city: String,
     company_size: String,
     industry: String,
     interest: String,
@@ -39,6 +42,9 @@ struct LeadPayload {
     phone: String,
     linkedin: String,
     location: String,
+    country: String,
+    state: String,
+    city: String,
     company_size: String,
     industry: String,
     interest: String,
@@ -113,9 +119,8 @@ fn normalize_stage(stage: &str) -> String {
     }
 
     match normalized.to_lowercase().as_str() {
-        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => {
-            "Apresentação".to_string()
-        }
+        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => "Apresentação".to_string(),
+        "ganho" | "ganha" | "convertido" | "convertida" | "won" => "Ganho".to_string(),
         _ => "Novo".to_string(),
     }
 }
@@ -156,9 +161,9 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
     };
 
     conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
@@ -277,6 +282,9 @@ fn init_db(conn: &Connection) -> Result<(), String> {
             phone TEXT,
             linkedin TEXT,
             location TEXT,
+            country TEXT,
+            state TEXT,
+            city TEXT,
             company_size TEXT,
             industry TEXT,
             interest TEXT,
@@ -291,6 +299,9 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     ensure_column(conn, "leads", "next_followup_at", "TEXT")?;
+    ensure_column(conn, "leads", "country", "TEXT")?;
+    ensure_column(conn, "leads", "state", "TEXT")?;
+    ensure_column(conn, "leads", "city", "TEXT")?;
 
     Ok(())
 }
@@ -335,15 +346,18 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         phone: row.get(5)?,
         linkedin: row.get(6)?,
         location: row.get(7)?,
-        company_size: row.get(8)?,
-        industry: row.get(9)?,
-        interest: row.get(10)?,
-        stage: row.get(11)?,
-        notes: row.get(12)?,
-        created_at: row.get(13)?,
-        updated_at: row.get(14)?,
-        last_contacted_at: row.get(15)?,
-        next_followup_at: row.get(16)?,
+        country: row.get(8)?,
+        state: row.get(9)?,
+        city: row.get(10)?,
+        company_size: row.get(11)?,
+        industry: row.get(12)?,
+        interest: row.get(13)?,
+        stage: row.get(14)?,
+        notes: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        last_contacted_at: row.get(18)?,
+        next_followup_at: row.get(19)?,
     })
 }
 
@@ -351,7 +365,7 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
 fn list_leads() -> Result<Vec<Lead>, String> {
     let conn = open_db()?;
     let mut stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_lead)
@@ -363,7 +377,7 @@ fn list_leads() -> Result<Vec<Lead>, String> {
 
 fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
     conn.query_row(
-        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
+        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
         [id],
         row_to_lead,
     )
@@ -390,8 +404,8 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     }
 
     conn.execute(
-        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, company_size=?8, industry=?9, interest=?10, stage=?11, notes=?12, updated_at=?13, last_contacted_at=?14, next_followup_at=?15 WHERE id=?16",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
+        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, updated_at=?16, last_contacted_at=?17, next_followup_at=?18 WHERE id=?19",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -442,6 +456,9 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             job_title: String::new(),
             linkedin: String::new(),
             location: String::new(),
+            country: String::new(),
+            state: String::new(),
+            city: String::new(),
             company_size: String::new(),
             industry: String::new(),
             interest: String::new(),
@@ -545,7 +562,7 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut latest_stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
         .map_err(|e| e.to_string())?;
     let latest = latest_stmt
         .query_map([], row_to_lead)

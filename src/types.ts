@@ -1,4 +1,4 @@
-export const STAGES = ['Novo', 'Contatado', 'Apresentação', 'Pausado', 'Perdido'] as const;
+export const STAGES = ['Novo', 'Contatado', 'Apresentação', 'Ganho', 'Pausado', 'Perdido'] as const;
 export type Stage = (typeof STAGES)[number];
 
 export interface Lead {
@@ -10,6 +10,9 @@ export interface Lead {
   phone: string;
   linkedin: string;
   location: string;
+  country: string;
+  state: string;
+  city: string;
   company_size: string;
   industry: string;
   interest: string;
