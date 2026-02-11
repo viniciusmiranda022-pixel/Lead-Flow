@@ -7,463 +7,351 @@ from typing import Iterable
 
 import streamlit as st
 
-STAGE_COLORS = {
-    "Novo": "#1d4ed8",
-    "Contatado": "#0ea5e9",
-    "Apresentação de portifolio feita": "#8b5cf6",
-    "Apresentação": "#8b5cf6",
-    "Pausado": "#f59e0b",
-    "Perdido": "#ef4444",
+TOKENS = {
+    "bg": "#F6F8FC",
+    "surface": "#FFFFFF",
+    "surface_soft": "#F8FAFC",
+    "text": "#0F172A",
+    "text_soft": "#475569",
+    "text_muted": "#64748B",
+    "line": "#E2E8F0",
+    "primary": "#2563EB",
+    "primary_soft": "#DBEAFE",
+    "radius": "14px",
+    "radius_sm": "10px",
+    "shadow": "0 8px 24px rgba(15, 23, 42, 0.06)",
+    "shadow_hover": "0 14px 28px rgba(15, 23, 42, 0.12)",
+    "space_1": "8px",
+    "space_2": "12px",
+    "space_3": "16px",
+    "space_4": "24px",
+}
+
+STAGE_THEME = {
+    "Novo": {"bg": "#E8F1FF", "fg": "#1D4ED8"},
+    "Contatado": {"bg": "#E0F2FE", "fg": "#0369A1"},
+    "Apresentação": {"bg": "#F3E8FF", "fg": "#6D28D9"},
+    "Apresentação de portifolio feita": {"bg": "#F3E8FF", "fg": "#6D28D9"},
+    "Pausado": {"bg": "#FEF3C7", "fg": "#B45309"},
+    "Perdido": {"bg": "#FEE2E2", "fg": "#B91C1C"},
 }
 
 
 def apply_global_css() -> None:
-    """Aplica design system com estética SaaS moderna."""
+    """Aplica design system SaaS centralizado."""
     st.markdown(
-        """
+        f"""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            :root {{
+                --lf-bg: {TOKENS['bg']};
+                --lf-surface: {TOKENS['surface']};
+                --lf-surface-soft: {TOKENS['surface_soft']};
+                --lf-text: {TOKENS['text']};
+                --lf-text-soft: {TOKENS['text_soft']};
+                --lf-text-muted: {TOKENS['text_muted']};
+                --lf-line: {TOKENS['line']};
+                --lf-primary: {TOKENS['primary']};
+                --lf-primary-soft: {TOKENS['primary_soft']};
+                --lf-radius: {TOKENS['radius']};
+                --lf-radius-sm: {TOKENS['radius_sm']};
+                --lf-shadow: {TOKENS['shadow']};
+                --lf-shadow-hover: {TOKENS['shadow_hover']};
+            }}
 
-            :root {
-                --bg-page: #F4F6FA;
-                --surface: #FFFFFF;
-                --surface-soft: #F8FAFC;
-                --text-primary: #0F172A;
-                --text-secondary: #475569;
-                --text-muted: #64748B;
-                --line: #E2E8F0;
-                --line-strong: #CBD5E1;
-                --primary: #2563EB;
-                --primary-dark: #1D4ED8;
-                --radius-lg: 16px;
-                --radius-md: 12px;
-                --space-1: 8px;
-                --space-2: 12px;
-                --space-3: 16px;
-                --space-4: 24px;
-                --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.06);
-                --shadow-hover: 0 18px 36px rgba(15, 23, 42, 0.12);
-            }
-
-            html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-            #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
-
+            #MainMenu, footer, header[data-testid="stHeader"] {{ visibility: hidden; }}
             [data-testid="stAppViewContainer"],
             [data-testid="stAppViewContainer"] > .main,
-            [data-testid="stAppViewContainer"] > .main > div {
-                background: var(--bg-page) !important;
-            }
+            [data-testid="stAppViewContainer"] > .main > div {{
+                background: var(--lf-bg) !important;
+            }}
+            .block-container {{
+                max-width: 1200px;
+                padding-top: 16px;
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-bottom: 24px;
+            }}
 
-            .block-container {
-                max-width: 1280px;
-                padding-top: var(--space-4);
-                padding-bottom: calc(var(--space-4) + var(--space-3));
-                gap: var(--space-3);
-            }
-
-            .lf-header-row { display: flex; align-items: center; }
-            .lf-brand { display: inline-flex; align-items: center; gap: var(--space-1); }
-            .lf-brand-icon {
-                width: 22px; height: 22px; border-radius: 999px;
-                display: inline-flex; align-items: center; justify-content: center;
-                background: #DBEAFE; color: var(--primary-dark); font-size: 11px; font-weight: 800;
-            }
-            .brand-title { font-size: 1.06rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-
-            div[data-testid="stHorizontalBlock"]:has(.lf-header-row) {
-                position: sticky; top: var(--space-2); z-index: 90;
-                background: rgba(244, 246, 250, 0.9);
+            .lf-header {{
+                position: sticky;
+                top: 10px;
+                z-index: 50;
+                background: rgba(246,248,252,0.90);
                 backdrop-filter: blur(8px);
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                box-shadow: var(--shadow-soft);
-                padding: var(--space-2) var(--space-3);
-                margin-bottom: var(--space-3);
-            }
+                border: 1px solid var(--lf-line);
+                border-radius: var(--lf-radius);
+                padding: 12px 16px;
+                margin-bottom: 16px;
+                box-shadow: var(--lf-shadow);
+            }}
+            .lf-brand {{ font-size: 1.1rem; font-weight: 700; color: var(--lf-text); letter-spacing: -0.01em; }}
+            .lf-subtitle {{ color: var(--lf-text-muted); font-size: .86rem; margin-top: 4px; }}
 
-            div[data-testid="stSegmentedControl"] { display: flex; justify-content: flex-end; }
-            div[data-testid="stSegmentedControl"] [role="radiogroup"] { gap: var(--space-1); background: transparent; border: 0; padding: 0; }
-            div[data-testid="stSegmentedControl"] button {
-                border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
-                background: var(--surface); min-height: 36px; transition: all 0.2s ease;
-            }
-            div[data-testid="stSegmentedControl"] button:hover { border-color: var(--line-strong); }
-            div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-                border-color: var(--primary); background: #DBEAFE;
-                box-shadow: inset 0 0 0 1px #BFDBFE; color: #1E3A8A !important;
-            }
-
-            .section-title, .lead-toolbar-title {
-                font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.05em;
-                font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-2);
-            }
-
-            .page-hero {
-                border: 1px solid #DBEAFE;
-                border-radius: var(--radius-lg);
-                background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%);
-                padding: 18px 20px;
-                margin-bottom: var(--space-3);
-                box-shadow: var(--shadow-soft);
-            }
-            .page-kicker {
-                font-size: 0.73rem;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                font-weight: 700;
-                color: #1D4ED8;
-                margin-bottom: 4px;
-            }
-            .page-hero h1 {
-                margin: 0;
-                font-size: 1.3rem;
-                color: var(--text-primary);
-                letter-spacing: -0.015em;
-            }
-            .page-hero p {
-                margin: 8px 0 0;
-                color: var(--text-secondary);
-                font-size: 0.9rem;
-            }
-
-            .filter-chip-wrap { margin-top: var(--space-1); }
-            .filter-chip-wrap-compact { margin-top: 0; }
-            .filter-chip-title {
-                font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
-                font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;
-            }
-
-            .metric-card, .chart-card, .recent-list, .lead-card {
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                background: var(--surface);
-                box-shadow: var(--shadow-soft);
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
-            }
-            .metric-card:hover, .chart-card:hover, .lead-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-
-            .metric-card { padding: var(--space-3); min-height: 108px; display: grid; gap: var(--space-1); }
-            .metric-head { display: flex; align-items: center; gap: var(--space-1); }
-            .metric-icon {
-                width: 24px; height: 24px; border-radius: 8px; background: #EFF6FF;
-                color: var(--primary-dark); font-size: 0.66rem; font-weight: 700;
-                display: inline-flex; align-items: center; justify-content: center;
-            }
-            .metric-label {
-                font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
-                font-weight: 600; color: var(--text-secondary);
-            }
-            .metric-value { font-size: 1.68rem; font-weight: 800; color: var(--text-primary); line-height: 1; }
-
-            .chart-card { padding: 14px 14px 10px; min-height: 372px; }
-            .chart-title {
-                font-size: 0.88rem;
-                font-weight: 700;
-                color: var(--text-secondary);
-                margin-bottom: 6px;
-                letter-spacing: 0.01em;
-            }
-
-            .recent-list { padding: var(--space-3); }
-            .recent-item {
-                border: 1px solid #EEF2F7; border-radius: var(--radius-md); background: var(--surface);
-                padding: var(--space-2) var(--space-3); margin-bottom: var(--space-1); display: flex;
-                justify-content: space-between; align-items: center; gap: var(--space-2);
-                transition: box-shadow 0.2s ease;
-            }
-            .recent-item:hover { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1); }
-            .recent-left { display: flex; align-items: center; gap: var(--space-2); }
-            .recent-avatar {
-                width: 30px; height: 30px; border-radius: 999px; background: #EFF6FF;
-                color: var(--primary-dark); font-size: 0.8rem; font-weight: 700;
-                display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-            }
-
-            .badge {
-                display: inline-flex; align-items: center;
-                padding: 4px 12px; border-radius: 999px;
-                font-size: 0.72rem; font-weight: 700; color: #fff;
-            }
-
-            
-            .lead-search-large input { min-height: 48px !important; font-size: 0.95rem; }
-            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) div[data-testid="stPills"] button,
-            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) div[data-testid="stSegmentedControl"] button {
-                min-height: 34px !important;
-                padding: 4px 10px !important;
-                font-size: 0.74rem !important;
-            }
-            div[data-testid="stHorizontalBlock"]:has(.lead-search-large) .stSelectbox div[data-baseweb="select"] > div {
-                min-height: 34px !important;
-                border-radius: 999px !important;
-                font-size: 0.78rem !important;
-                padding-top: 0 !important;
-                padding-bottom: 0 !important;
-            }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) {
-                border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface);
-                box-shadow: var(--shadow-soft); padding: var(--space-3); margin-bottom: var(--space-3);
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
-            }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker):hover {
-                transform: translateY(-2px); box-shadow: var(--shadow-hover);
-            }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"] > button {
-                opacity: 0; transition: opacity 0.2s ease;
-            }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker):hover [data-testid="stPopover"] > button,
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"] > button:focus-visible,
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) [data-testid="stPopover"][aria-expanded="true"] > button {
-                opacity: 1;
-            }
-            .lead-row-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-            .lead-company { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); }
-            .lead-meta { color: var(--text-secondary); font-size: 0.88rem; margin-top: 4px; }
-            .lead-links { display: flex; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: 0.82rem; margin-top: 8px; }
-            .lead-links a { color: #334155; text-decoration: none; }
-            .lead-links a:hover { color: var(--primary); text-decoration: underline; }
-            .meta-icon {
-                width: 18px;
-                height: 18px;
+            div[data-testid="stSegmentedControl"] [role="radiogroup"] {{
+                gap: 8px;
+                justify-content: flex-end;
+                background: transparent;
+                border: 0;
+                padding: 0;
+            }}
+            div[data-testid="stSegmentedControl"] button {{
                 border-radius: 999px;
+                border: 1px solid var(--lf-line);
+                background: var(--lf-surface);
+                min-height: 36px;
+                padding: 6px 14px;
+            }}
+            div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {{
+                background: var(--lf-primary-soft);
+                border-color: #BFDBFE;
+                color: #1E40AF !important;
+            }}
+
+            .lf-card {{
+                border: 1px solid var(--lf-line);
+                background: var(--lf-surface);
+                border-radius: var(--lf-radius);
+                box-shadow: var(--lf-shadow);
+                transition: .18s ease;
+            }}
+            .lf-card:hover {{ transform: translateY(-1px); box-shadow: var(--lf-shadow-hover); }}
+
+            .lf-metric-link {{
+                display: block;
+                text-decoration: none;
+                color: inherit;
+                border: 1px solid var(--lf-line);
+                background: var(--lf-surface);
+                border-radius: var(--lf-radius);
+                box-shadow: var(--lf-shadow);
+                padding: 16px;
+                transition: .18s ease;
+                min-height: 116px;
+            }}
+            .lf-metric-link:hover {{ transform: translateY(-1px); box-shadow: var(--lf-shadow-hover); }}
+            .lf-metric-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
+            .lf-metric-label {{ font-size: .85rem; color: var(--lf-text-soft); font-weight: 600; }}
+            .lf-metric-value {{ font-size: 1.8rem; color: var(--lf-text); font-weight: 800; }}
+            .lf-metric-icon {{ font-size: 1rem; opacity: .8; }}
+
+            .lf-section-title {{ font-size: .95rem; font-weight: 700; color: var(--lf-text); margin: 0; }}
+            .lf-section-subtitle {{ font-size: .84rem; color: var(--lf-text-muted); margin-top: 4px; }}
+
+            .chart-card {{ padding: 16px; height: 100%; }}
+            .chart-card h4 {{ margin: 0 0 12px; color: var(--lf-text); font-size: .95rem; }}
+            [data-testid="stPlotlyChart"] {{ background: transparent !important; }}
+
+            .recent-list {{ padding: 8px; }}
+            .recent-item {{
+                display: flex; align-items: center; justify-content: space-between;
+                gap: 12px; padding: 12px; border-radius: var(--lf-radius-sm);
+            }}
+            .recent-item + .recent-item {{ border-top: 1px solid #EEF2F7; }}
+            .recent-company {{ font-weight: 600; color: var(--lf-text); }}
+            .recent-date {{ font-size: .78rem; color: var(--lf-text-muted); margin-top: 2px; }}
+
+            .lf-badge {{
                 display: inline-flex;
                 align-items: center;
-                justify-content: center;
-                background: #EFF6FF;
-                color: #1D4ED8;
-                font-size: 0.7rem;
-                margin-right: 4px;
-            }
-            .lead-interest-chip {
-                display: inline-flex; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
-                background: #EEF2FF; color: #3730A3; font-size: 0.72rem; font-weight: 600;
-            }
-            .updated-at { color: var(--text-muted); font-size: 0.78rem; margin-top: 10px; }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stSegmentedControl"] button,
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stPills"] button {
-                min-height: 30px !important; padding: 3px 10px !important; font-size: 0.75rem !important;
-                border-radius: 999px !important;
-            }
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stSegmentedControl"] button:hover,
-            div[data-testid="stVerticalBlock"]:has(.lead-card-marker) div[data-testid="stPills"] button:hover {
-                box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
-            }
+                padding: 3px 10px;
+                border-radius: 999px;
+                font-size: .75rem;
+                font-weight: 700;
+            }}
 
-            .inline-error { margin-top: var(--space-1); font-size: 0.78rem; color: #DC2626; font-weight: 600; }
+            .lead-toolbar {{ margin-bottom: 12px; }}
+            .lead-search input {{ min-height: 42px !important; }}
 
-            [data-testid="stForm"] {
-                background: var(--surface-soft); border: 1px solid var(--line);
-                border-radius: var(--radius-lg); padding: var(--space-3); box-shadow: var(--shadow-soft);
-            }
-            [data-testid="stForm"] [data-testid="InputInstructions"] { display: none !important; }
+            .lead-card {{ padding: 14px; margin-bottom: 12px; }}
+            .lead-top {{ display: flex; justify-content: space-between; gap: 8px; align-items: start; }}
+            .lead-company {{ margin: 0; font-size: 1rem; color: var(--lf-text); font-weight: 700; }}
+            .lead-meta {{ font-size: .84rem; color: var(--lf-text-soft); margin-top: 4px; }}
+            .lead-links {{ display:flex; flex-wrap:wrap; gap: 12px; font-size: .82rem; margin-top: 10px; }}
+            .lead-links a {{ color: #334155; text-decoration: none; }}
+            .lead-links a:hover {{ color: var(--lf-primary); text-decoration: underline; }}
+            .lead-updated {{ font-size: .76rem; color: var(--lf-text-muted); margin-top: 8px; }}
 
-            label[data-testid="stWidgetLabel"] p { font-size: 0.78rem !important; font-weight: 600; color: var(--text-secondary); }
+            .kebab-wrap {{ opacity: .35; transition: .18s ease; }}
+            .kebab-wrap:hover {{ opacity: 1; }}
+            div[data-testid="stVerticalBlock"]:has(.lead-card-hook):hover .kebab-wrap {{ opacity: 1; }}
 
-            .stTextInput > div > div > input,
-            .stSelectbox div[data-baseweb="select"] > div,
-            .stTextArea textarea {
-                border-radius: 12px !important; border-color: var(--line) !important;
-                background: var(--surface) !important; min-height: 40px;
-            }
-            .stTextInput > div > div > input:focus,
-            .stTextArea textarea:focus,
-            .stSelectbox div[data-baseweb="select"]:focus-within {
-                border-color: var(--primary) !important; box-shadow: 0 0 0 1px var(--primary) !important;
-            }
+            div[data-testid="stPills"] button,
+            div[data-testid="stSegmentedControl"] button {{ border-radius: 999px !important; }}
 
-            .stButton > button, .stLinkButton > a {
-                border-radius: 12px !important; min-height: 40px; padding: 8px 14px; font-weight: 600;
-                border: 1px solid var(--line) !important; background: var(--surface) !important;
-            }
-            .stButton > button[kind="primary"] { background: var(--primary) !important; border-color: var(--primary) !important; color: #fff !important; }
-            .stButton > button[kind="primary"]:hover { background: var(--primary-dark) !important; border-color: var(--primary-dark) !important; }
+            .stButton > button, .stLinkButton > a {{
+                border-radius: 10px !important;
+                min-height: 38px;
+                font-weight: 600;
+                box-shadow: 0 2px 10px rgba(15,23,42,0.06);
+            }}
+            .stButton > button[kind="primary"] {{ background: var(--lf-primary) !important; border-color: var(--lf-primary) !important; }}
 
-            [data-testid="stPlotlyChart"] { background: transparent; border: 0; box-shadow: none; padding: 0; }
+            [data-testid="stForm"] [data-testid="InputInstructions"] {{ display:none !important; }}
+            [data-testid="stDialog"] [data-testid="stForm"] {{
+                background: var(--lf-surface);
+                border: 1px solid var(--lf-line);
+                border-radius: var(--lf-radius);
+                padding: 16px;
+            }}
+            .stTextInput input, .stTextArea textarea, .stSelectbox [data-baseweb="select"] > div {{
+                border-radius: 10px !important;
+                border-color: var(--lf-line) !important;
+            }}
+            .stTextInput input:focus, .stTextArea textarea:focus, .stSelectbox [data-baseweb="select"]:focus-within {{
+                border-color: var(--lf-primary) !important;
+                box-shadow: 0 0 0 1px var(--lf-primary) !important;
+            }}
 
-            @media (max-width: 1024px) {
-                .block-container { padding-left: var(--space-3); padding-right: var(--space-3); }
-                div[data-testid="column"] { min-width: calc(50% - 8px) !important; flex: 1 1 calc(50% - 8px) !important; }
-            }
-            @media (max-width: 640px) {
-                div[data-testid="column"] { min-width: 100% !important; flex: 1 1 100% !important; }
-                div[data-testid="stHorizontalBlock"]:has(.lf-header-row) { top: var(--space-1); }
-                div[data-testid="stSegmentedControl"] { justify-content: start; }
-            }
+            @media (max-width: 900px) {{ .block-container {{ padding-left: 16px; padding-right: 16px; }} }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_header_tabs(current_screen: str) -> str:
-    """Renderiza header fixo com marca e navegação em pills."""
+def render_header(current_screen: str) -> str:
     left, right = st.columns([3, 2])
     with left:
-        st.markdown(
-            """
-            <div class="lf-header-row">
-                <div class="lf-brand">
-                    <span class="lf-brand-icon">•</span>
-                    <span class="brand-title">LeadFlow SaaS CRM</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+        st.markdown('<div class="lf-header"><div class="lf-brand">LeadFlow</div><div class="lf-subtitle">CRM de prospecção</div></div>', unsafe_allow_html=True)
     with right:
         if hasattr(st, "segmented_control"):
-            screen = st.segmented_control(
+            picked = st.segmented_control(
                 "Navegação",
-                ["📊 Dashboard", "🧾 Leads"],
+                ["Dashboard", "Leads"],
+                default=current_screen,
                 selection_mode="single",
-                default="📊 Dashboard" if current_screen == "Dashboard" else "🧾 Leads",
                 key="header_nav",
                 label_visibility="collapsed",
             )
-            return "Dashboard" if screen == "📊 Dashboard" else "Leads"
-        else:
-            first_col, second_col = st.columns(2)
-            with first_col:
-                if st.button("📊 Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
-                    return "Dashboard"
-            with second_col:
-                if st.button("🧾 Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
-                    return "Leads"
-            screen = current_screen
+            return picked or current_screen
 
-    return screen or current_screen
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Dashboard", use_container_width=True, type="primary" if current_screen == "Dashboard" else "secondary"):
+                return "Dashboard"
+        with c2:
+            if st.button("Leads", use_container_width=True, type="primary" if current_screen == "Leads" else "secondary"):
+                return "Leads"
+    return current_screen
 
 
-def render_metric_card(title: str, value: int, icon: str, tone: str = "#ffffff") -> None:
+def render_metric_card(label: str, value: int, icon: str, target_status: str) -> None:
     st.markdown(
         f"""
-        <div class="metric-card" style="background:{tone};">
-            <div class="metric-head">
-                <span class="metric-icon">{icon}</span>
-                <div class="metric-label">{title}</div>
+        <a class="lf-metric-link" href="?screen=Leads&status={target_status}">
+            <div class="lf-metric-top">
+                <span class="lf-metric-label">{label}</span>
+                <span class="lf-metric-icon">{icon}</span>
             </div>
-            <div class="metric-value">{value}</div>
-        </div>
+            <div class="lf-metric-value">{value}</div>
+        </a>
         """,
         unsafe_allow_html=True,
     )
 
 
-def status_badge(stage: str) -> str:
-    color = STAGE_COLORS.get(stage, "#64748b")
-    return f'<span class="badge" style="background:{color};">{stage}</span>'
-
-
-def render_metric_cards_clickable(
-    cards_data: Iterable[tuple[str, int, str, str]],
-    key_prefix: str = "metric_card",
-) -> str | None:
-    """Renderiza cards de métricas e retorna o rótulo clicado."""
-    cards = list(cards_data)
-    columns = st.columns(len(cards))
-    clicked_label = None
-
-    for col, (label, value, icon, tone) in zip(columns, cards):
+def render_metric_cards_clickable(cards_data: Iterable[tuple[str, int, str, str]]) -> None:
+    cols = st.columns(len(list(cards_data)))
+    for col, (label, value, icon, stage_filter) in zip(cols, cards_data):
         with col:
-            render_metric_card(label, value, icon, tone)
-            if st.button("🔎 Ver leads", key=f"{key_prefix}_{label}", use_container_width=True):
-                clicked_label = label
+            render_metric_card(label, value, icon, stage_filter)
 
-    return clicked_label
+
+def status_badge(stage: str) -> str:
+    theme = STAGE_THEME.get(stage, {"bg": "#E2E8F0", "fg": "#334155"})
+    return f'<span class="lf-badge" style="background:{theme["bg"]}; color:{theme["fg"]};">{stage}</span>'
+
+
+def pills_filters(label: str, options: list[str], default: str, key: str):
+    if hasattr(st, "pills"):
+        return st.pills(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
+    if hasattr(st, "segmented_control"):
+        return st.segmented_control(label, options, default=default, selection_mode="single", key=key, label_visibility="collapsed")
+    return st.selectbox(label, options, index=options.index(default), key=key, label_visibility="collapsed")
 
 
 def kebab_actions_menu(lead_id: int, pending_delete_id: int | None) -> str | None:
-    """Renderiza menu oculto de ações e retorna ação escolhida."""
-    if hasattr(st, "popover"):
-        with st.popover("⋯"):
-            if st.button("✏️ Editar lead", key=f"edit_{lead_id}", use_container_width=True):
-                return "edit"
+    with st.container():
+        st.markdown('<div class="kebab-wrap">', unsafe_allow_html=True)
+        if hasattr(st, "popover"):
+            with st.popover("⋯"):
+                if st.button("Editar", key=f"edit_{lead_id}", use_container_width=True):
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    return "edit"
+                if pending_delete_id == lead_id:
+                    if st.button("Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        return "delete_confirm"
+                    if st.button("Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        return "delete_cancel"
+                elif st.button("Excluir", key=f"delete_init_{lead_id}", use_container_width=True):
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    return "delete_init"
+            st.markdown('</div>', unsafe_allow_html=True)
+            return None
 
-            if pending_delete_id == lead_id:
-                if st.button("🗑️ Confirmar exclusão", key=f"delete_confirm_{lead_id}", use_container_width=True, type="primary"):
-                    return "delete_confirm"
-                if st.button("↩️ Cancelar", key=f"delete_cancel_{lead_id}", use_container_width=True):
-                    return "delete_cancel"
-            elif st.button("🗑️ Excluir lead", key=f"delete_init_{lead_id}", use_container_width=True):
-                return "delete_init"
-        return None
-
-    cols = st.columns(2)
-    if cols[0].button("Editar", key=f"edit_fallback_{lead_id}", use_container_width=True):
-        return "edit"
-    if cols[1].button("Excluir", key=f"delete_fallback_{lead_id}", use_container_width=True):
-        return "delete_confirm"
+        if st.button("Editar", key=f"edit_fallback_{lead_id}", use_container_width=True):
+            st.markdown('</div>', unsafe_allow_html=True)
+            return "edit"
+        if st.button("Excluir", key=f"delete_fallback_{lead_id}", use_container_width=True):
+            st.markdown('</div>', unsafe_allow_html=True)
+            return "delete_confirm"
+        st.markdown('</div>', unsafe_allow_html=True)
     return None
 
 
-def render_lead_card(
-    row,
-    display_stage: str,
-    updated_at: str,
-    pending_delete_id: int | None,
-    whatsapp_number: str | None,
-) -> str | None:
-    """Renderiza card de lead moderno e retorna ação do menu kebab."""
+def render_lead_card(row, display_stage: str, updated_at: str, pending_delete_id: int | None, whatsapp_number: str | None) -> str | None:
     email = row["email"] or ""
     phone = row["phone"] or ""
     linkedin = row["linkedin"] or ""
     location = row["location"] or ""
 
-    with st.container():
-        st.markdown('<div class="lead-card-marker"></div>', unsafe_allow_html=True)
-
+    st.markdown('<div class="lead-card-hook"></div>', unsafe_allow_html=True)
+    with st.container(border=False):
+        st.markdown('<div class="lead-card lf-card">', unsafe_allow_html=True)
         top_left, top_right = st.columns([8, 1])
         with top_left:
             st.markdown(
                 f"""
-                <div class="lead-row-top">
-                    <div class="lead-company">{row['company']}</div>
+                <div class="lead-top">
+                    <h4 class="lead-company">{row['company']}</h4>
                     <div>{status_badge(display_stage)}</div>
                 </div>
+                <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
+                <div class="lead-links">
+                    {f'<a href="mailto:{email}">✉️ E-mail</a>' if email else '<span>✉️ E-mail indisponível</span>'}
+                    {f'<a href="tel:{phone}">📞 {phone}</a>' if phone else '<span>📞 Sem telefone</span>'}
+                    {f'<span>📍 {location}</span>' if location else ''}
+                    {f'<a href="{linkedin}" target="_blank">🔗 LinkedIn</a>' if linkedin else ''}
+                </div>
+                <div class="lead-updated">Atualizado em {updated_at}</div>
                 """,
                 unsafe_allow_html=True,
             )
         with top_right:
             menu_action = kebab_actions_menu(row["id"], pending_delete_id)
 
-        st.markdown(
-            f"""
-            <div class="lead-meta">{row['contact_name'] or 'Sem contato'} {('• ' + row['job_title']) if row['job_title'] else ''}</div>
-            <div class="lead-links">
-                <span>{'<span class="meta-icon">✉</span><a href="mailto:' + email + '">' + email + '</a>' if email else '<span class="meta-icon">✉</span>-'} </span>
-                <span>{'<span class="meta-icon">☎</span><a href="tel:' + phone + '">' + phone + '</a>' if phone else '<span class="meta-icon">☎</span>-'} </span>
-                {f'<span><span class="meta-icon">📍</span>{location}</span>' if location else ''}
-            </div>
-            {f'<div class="lead-interest-chip">{row["interest"]}</div>' if row['interest'] else ''}
-            <div class="updated-at">Atualizado em {updated_at}</div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        action_cols = st.columns(3)
-        with action_cols[0]:
+        quick_cols = st.columns([1, 1, 1, 1])
+        with quick_cols[0]:
             if email:
-                st.link_button("✉️ E-mail", f"mailto:{email}", use_container_width=True)
+                st.link_button("Enviar e-mail", f"mailto:{email}", use_container_width=True)
             else:
-                st.button("✉️ E-mail", disabled=True, key=f"email_disabled_{row['id']}", use_container_width=True)
-        with action_cols[1]:
+                st.button("Enviar e-mail", disabled=True, use_container_width=True, key=f"email_disabled_{row['id']}")
+        with quick_cols[1]:
             if whatsapp_number:
-                st.link_button("💬 WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
+                st.link_button("WhatsApp", f"https://wa.me/{whatsapp_number}", use_container_width=True)
             else:
-                st.empty()
-        with action_cols[2]:
-            if linkedin:
-                st.link_button("🔗 LinkedIn", linkedin, use_container_width=True)
-            else:
-                st.empty()
+                st.button("WhatsApp", disabled=True, use_container_width=True, key=f"wa_disabled_{row['id']}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     return menu_action
 
 
 # Backward-compatible aliases
 apply_global_styles = apply_global_css
-render_top_header = render_header_tabs
+render_header_tabs = render_header
+render_top_header = render_header
 stage_badge = status_badge
 
 
