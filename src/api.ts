@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { DashboardData, Lead, LeadPayload, Stage } from './types';
+import type { DashboardData, ImportResult, Lead, LeadPayload, Stage } from './types';
 
 export const api = {
   getDashboard: () => invoke<DashboardData>('get_dashboard_data'),
@@ -8,5 +8,6 @@ export const api = {
   updateLead: (id: number, payload: LeadPayload) => invoke<Lead>('update_lead', { id, payload }),
   deleteLead: (id: number) => invoke<void>('delete_lead', { id }),
   updateStage: (id: number, stage: Stage) => invoke<Lead>('update_stage', { id, stage }),
-  importLegacyDb: () => invoke<boolean>('import_legacy_db')
+  importLegacyDb: () => invoke<boolean>('import_legacy_db'),
+  importCsv: (csvContent: string) => invoke<ImportResult>('import_csv', { csvContent })
 };

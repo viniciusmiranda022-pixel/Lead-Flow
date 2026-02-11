@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { STAGES, type Lead, type Stage } from '../types';
 import { Badge } from './Badge';
 import { Button } from './ui/Button';
+import { getStageMeta } from '../theme/meta';
 
 interface Props {
   lead: Lead;
@@ -18,6 +19,7 @@ function onlyDigits(value: string) {
 
 export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   const [showMenu, setShowMenu] = useState(false);
+  const stageMeta = getStageMeta(lead.stage);
 
   const phoneDigits = onlyDigits(lead.phone);
   const hasPhone = phoneDigits.length > 0;
@@ -39,7 +41,8 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
   };
 
   return (
-    <article className="group relative lf-card lf-card-hover p-4">
+    <article className="group relative lf-card lf-card-hover overflow-hidden p-4" style={{ borderLeft: `4px solid ${stageMeta.strong}` }}>
+      <span className="absolute left-0 top-0 h-10 w-1 rounded-r-full" style={{ background: stageMeta.strong }} />
       <button
         onClick={() => setShowMenu((v) => !v)}
         className="absolute right-3 top-3 hidden rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 group-hover:inline-flex"
@@ -59,32 +62,37 @@ export function LeadCard({ lead, onEdit, onDelete, onUpdateStage }: Props) {
       </div>
       <p className="mt-1 text-sm text-slate-600">{lead.contact_name || 'Sem contato'}{lead.job_title ? ` · ${lead.job_title}` : ''}</p>
       <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
-        <p className="inline-flex items-center gap-2"><Mail size={14}/> {lead.email || 'Sem e-mail'}</p>
-        <p className="inline-flex items-center gap-2"><Phone size={14}/> {lead.phone || 'Sem telefone'}</p>
-        <p className="inline-flex items-center gap-2"><MapPin size={14}/> {lead.location || 'Sem localização'}</p>
+        <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><Mail size={14}/> <span className="text-slate-600">{lead.email || 'Sem e-mail'}</span></p>
+        <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><Phone size={14}/> <span className="text-slate-600">{lead.phone || 'Sem telefone'}</span></p>
+        <p className="inline-flex items-center gap-2" style={{ color: stageMeta.strong }}><MapPin size={14}/> <span className="text-slate-600">{lead.location || 'Sem localização'}</span></p>
       </div>
       <p className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600">
-        <CalendarClock size={14} />
+        <CalendarClock size={14} style={{ color: stageMeta.strong }} />
         Próximo follow-up: {lead.next_followup_at ? new Date(`${lead.next_followup_at}T00:00:00`).toLocaleDateString('pt-BR') : 'não definido'}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {STAGES.map((stage) => (
-          <Button
-            key={stage}
-            variant={stage === lead.stage ? 'primary' : 'outline'}
-            className="h-8 rounded-full px-3 py-1 text-xs"
-            onClick={() => onUpdateStage(lead, stage)}
-          >
-            {stage}
-          </Button>
-        ))}
+        {STAGES.map((stage) => {
+          const activeMeta = getStageMeta(stage);
+          const isActive = stage === lead.stage;
+          return (
+            <Button
+              key={stage}
+              variant={isActive ? 'outline' : 'ghost'}
+              className="h-8 rounded-full px-3 py-1 text-xs"
+              style={isActive ? { background: activeMeta.tint, borderColor: activeMeta.strong, color: activeMeta.strong } : undefined}
+              onClick={() => onUpdateStage(lead, stage)}
+            >
+              {stage}
+            </Button>
+          );
+        })}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="secondary" className="h-8" disabled={!hasEmail} onClick={handleOpenEmail}>
-          <Mail size={14} /> E-mail
+          <Mail size={14} color={stageMeta.strong} /> E-mail
         </Button>
         <Button variant="secondary" className="h-8" disabled={!hasPhone} onClick={handleOpenWhatsApp}>
-          <MessageCircle size={14} /> WhatsApp
+          <MessageCircle size={14} color={stageMeta.strong} /> WhatsApp
         </Button>
       </div>
     </article>
