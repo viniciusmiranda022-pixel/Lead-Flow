@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, Users, X } from 'lucide-react';
+import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -17,11 +17,12 @@ import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } f
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
-type Page = 'Dashboard' | 'Leads' | 'Relatórios';
+type Page = 'Dashboard' | 'Leads' | 'Leads Perdidos' | 'Relatórios';
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Leads', icon: Users },
+  { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Relatórios', icon: FileBarChart }
 ];
 
@@ -92,6 +93,11 @@ export function App() {
   const pendingFollowups = useMemo(
     () => leads.filter(isFollowupPending).sort((a, b) => (a.next_followup_at ?? '').localeCompare(b.next_followup_at ?? '')),
     [leads, followupTick]
+  );
+
+  const lostLeads = useMemo(
+    () => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [leads]
   );
 
   useEffect(() => {
@@ -362,6 +368,37 @@ export function App() {
             </>
           ) : null}
 
+          {page === 'Leads Perdidos' ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-semibold text-slate-900">Leads Perdidos</h1>
+                  <p className="text-sm text-slate-500">Leads sem avanço no momento, para retomar contato futuramente.</p>
+                </div>
+                <Badge kind="status" value="Perdido" />
+              </div>
+
+              <section className="grid gap-3">
+                {lostLeads.length === 0 ? (
+                  <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead perdido no momento.</div>
+                ) : (
+                  lostLeads.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onEdit={(row) => {
+                        setEditingLead(row);
+                        setModalOpen(true);
+                      }}
+                      onDelete={(row) => setDeleteLead(row)}
+                      onUpdateStage={updateStage}
+                    />
+                  ))
+                )}
+              </section>
+            </>
+          ) : null}
+
           {page === 'Relatórios' ? <ReportsPanel leads={leads} /> : null}
         </main>
       </div>
@@ -398,13 +435,14 @@ export function App() {
       <ConfirmDialog
         open={Boolean(lostLead)}
         title="Marcar como Perdido?"
-        description="Confirme para mover o lead para status Perdido."
+        description="Confirme para mover o lead para status Perdido e abrir a tela de Leads Perdidos."
         onCancel={() => setLostLead(null)}
         onConfirm={async () => {
           if (lostLead) {
             await api.updateStage(lostLead.id, 'Perdido');
             setLostLead(null);
             await refresh();
+            setPage('Leads Perdidos');
           }
         }}
       />
