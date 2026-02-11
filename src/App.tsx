@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Users, X } from 'lucide-react';
+import { FileBarChart, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, Users, X } from 'lucide-react';
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -12,9 +12,9 @@ import { LeadModal } from './components/LeadModal';
 import { ReportsPanel } from './components/ReportsPanel';
 import { StatCard } from './components/StatCard';
 import { Button } from './components/ui/Button';
+import { getStageMeta, interestChartPalette, stageColorMap } from './theme/meta';
 import { STAGES, type DashboardData, type Lead, type LeadPayload, type Stage } from './types';
 
-const chartColors = ['#0ea5e9', '#4f46e5', '#7c3aed', '#f59e0b', '#e11d48'];
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 type Page = 'Dashboard' | 'Leads' | 'Relatórios';
@@ -48,6 +48,7 @@ export function App() {
   const [lostLead, setLostLead] = useState<Lead | null>(null);
   const [followupTick, setFollowupTick] = useState(0);
   const [showFollowupToast, setShowFollowupToast] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -118,23 +119,34 @@ export function App() {
     await refresh();
   };
 
+  const statusChartData = STAGES.map((stage) => ({ stage, total: dashboard?.by_status[stage] ?? 0, color: stageColorMap[stage] }));
+
+  const handleCsvFile = async (file?: File | null) => {
+    if (!file) return;
+    const text = await file.text();
+    const result = await api.importCsv(text);
+    const detail = result.errors
+      .slice(0, 10)
+      .map((item) => `Linha ${item.row}: ${item.message} (${item.company || '-'} / ${item.email || '-'})`)
+      .join('\n');
+    alert(`Importados: ${result.imported}\nIgnorados: ${result.skipped}${detail ? `\n\nErros:\n${detail}` : ''}`);
+    await refresh();
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div
-        className={`fixed inset-0 z-30 bg-slate-900/50 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+      <div className={`fixed inset-0 z-30 bg-slate-900/50 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`} onClick={() => setSidebarOpen(false)} />
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-80 border-r border-slate-200 bg-white p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-40 w-80 border-r p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={{ borderColor: 'var(--border)', background: 'linear-gradient(180deg, #EFF6FF 0%, #F8FAFC 45%, #FFFFFF 100%)' }}
       >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={leadflowIcon} alt="LeadFlow" className="h-10 w-10 shrink-0 object-contain" />
-            <img src={leadflowWordmark} alt="LeadFlow" className="h-10 w-[240px] object-contain object-left" />
+            <img src={leadflowIcon} alt="LeadFlow" className="h-9 w-9 shrink-0 object-contain" />
+            <img src={leadflowWordmark} alt="LeadFlow" className="h-9 w-[220px] object-contain object-left" />
           </div>
-
           <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}>
             <X size={18} />
           </button>
@@ -145,15 +157,16 @@ export function App() {
             return (
               <button
                 key={item.label}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
-                  page === item.label ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition ${
+                  page === item.label ? 'text-white' : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
                 }`}
+                style={page === item.label ? { background: '#2563EB' } : undefined}
                 onClick={() => {
                   setPage(item.label);
                   setSidebarOpen(false);
                 }}
               >
-                <Icon size={16} />
+                <Icon size={16} strokeWidth={2} />
                 {item.label}
               </button>
             );
@@ -162,21 +175,15 @@ export function App() {
       </aside>
 
       <div className="md:pl-80">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur" style={{ borderColor: 'var(--border)' }}>
+          <div className="h-0.5 w-full" style={{ background: 'var(--brand-gradient)' }} />
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
             <div className="flex min-w-0 items-center gap-3">
               <button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu size={18} />
               </button>
-              <img src={leadflowIcon} alt="LeadFlow" className="h-10 w-10 shrink-0 object-contain md:hidden" />
-              <img
-                src={leadflowWordmark}
-                alt="LeadFlow"
-                className="hidden h-10 w-[220px] object-contain object-left sm:block md:hidden"
-              />
-              <p className="truncate text-sm font-semibold uppercase tracking-wide text-slate-500">{page}</p>
+              <p className="truncate text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">{page}</p>
             </div>
-
           </div>
         </header>
 
@@ -200,8 +207,7 @@ export function App() {
                       setFilter((prev) => ({ ...prev, search: lead.company, status: 'Todos' }));
                     }}
                   >
-                    <strong>{lead.company}</strong> · follow-up em{' '}
-                    {new Date(`${lead.next_followup_at}T00:00:00`).toLocaleDateString('pt-BR')}
+                    <strong>{lead.company}</strong> · follow-up em {new Date(`${lead.next_followup_at}T00:00:00`).toLocaleDateString('pt-BR')}
                   </button>
                 ))}
               </div>
@@ -211,66 +217,14 @@ export function App() {
           {page === 'Dashboard' && dashboard ? (
             <>
               <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Todos' }));
-                  }}
-                >
+                <button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Todos' })); }}>
                   <StatCard title="Total" value={dashboard.total} subtitle="👥 Leads no funil" />
                 </button>
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Novo' }));
-                  }}
-                >
-                  <StatCard title="Novo" value={dashboard.by_status['Novo'] ?? 0} stage="Novo" />
-                </button>
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Contatado' }));
-                  }}
-                >
-                  <StatCard title="Contatado" value={dashboard.by_status['Contatado'] ?? 0} stage="Contatado" />
-                </button>
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Apresentação' }));
-                  }}
-                >
-                  <StatCard title="Apresentação" value={dashboard.by_status['Apresentação'] ?? 0} stage="Apresentação" />
-                </button>
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Pausado' }));
-                  }}
-                >
-                  <StatCard title="Pausado" value={dashboard.by_status['Pausado'] ?? 0} stage="Pausado" />
-                </button>
-                <button
-                  type="button"
-                  className="text-left"
-                  onClick={() => {
-                    setPage('Leads');
-                    setFilter((f) => ({ ...f, status: 'Perdido' }));
-                  }}
-                >
-                  <StatCard title="Perdido" value={dashboard.by_status['Perdido'] ?? 0} stage="Perdido" />
-                </button>
+                {STAGES.map((stage) => (
+                  <button key={stage} type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: stage })); }}>
+                    <StatCard title={stage} value={dashboard.by_status[stage] ?? 0} stage={stage} />
+                  </button>
+                ))}
               </section>
 
               <section className="grid gap-4 xl:grid-cols-2">
@@ -278,12 +232,16 @@ export function App() {
                   <h2 className="mb-3 lf-section-title">Leads por Status</h2>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={STAGES.map((stage) => ({ stage, total: dashboard.by_status[stage] ?? 0 }))}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="stage" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
+                      <BarChart data={statusChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                        <XAxis dataKey="stage" tick={{ fontSize: 12, fill: '#64748B' }} />
+                        <YAxis tick={{ fontSize: 12, fill: '#64748B' }} />
                         <Tooltip />
-                        <Bar dataKey="total" radius={[8, 8, 0, 0]} fill="#2563eb" />
+                        <Bar dataKey="total" radius={[8, 8, 0, 0]}>
+                          {statusChartData.map((entry) => (
+                            <Cell key={entry.stage} fill={entry.color} fillOpacity={entry.total === 0 ? 0.25 : 1} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -291,16 +249,34 @@ export function App() {
                 <div className="lf-card p-4">
                   <h2 className="mb-3 lf-section-title">Top Interesses</h2>
                   <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={dashboard.by_interest} dataKey="value" nameKey="name" outerRadius={90} innerRadius={56}>
-                          {dashboard.by_interest.map((_, index) => (
-                            <Cell key={index} fill={chartColors[index % chartColors.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {dashboard.by_interest.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+                        Sem dados de interesse para exibir.
+                      </div>
+                    ) : (
+                      <div className="grid h-full grid-cols-2 gap-3">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={dashboard.by_interest} dataKey="value" nameKey="name" outerRadius={90} innerRadius={56}>
+                              {dashboard.by_interest.map((_, index) => (
+                                <Cell key={index} fill={interestChartPalette[index % interestChartPalette.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="overflow-auto pr-1">
+                          <ul className="space-y-2">
+                            {dashboard.by_interest.map((item, index) => (
+                              <li key={item.name} className="flex items-center justify-between text-sm text-slate-700">
+                                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: interestChartPalette[index % interestChartPalette.length] }} />{item.name}</span>
+                                <strong>{item.value}</strong>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -308,17 +284,22 @@ export function App() {
               <section className="lf-card p-4">
                 <h2 className="lf-section-title">Últimos 10 atualizados</h2>
                 <div className="mt-3 grid gap-2">
-                  {dashboard.latest.map((lead) => (
-                    <div key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium">{lead.company}</p>
-                        <Badge kind="status" value={lead.stage} />
-                      </div>
-                      <p className="text-xs text-slate-600">
-                        {lead.contact_name || 'Sem contato'} · {new Date(lead.updated_at).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                  ))}
+                  {dashboard.latest.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">Nenhum lead atualizado ainda.</div>
+                  ) : (
+                    dashboard.latest.map((lead) => {
+                      const meta = getStageMeta(lead.stage);
+                      return (
+                        <div key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3" style={{ borderLeft: `4px solid ${meta.strong}` }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">{lead.company}</p>
+                            <Badge kind="status" value={lead.stage} />
+                          </div>
+                          <p className="text-xs text-slate-600">{lead.contact_name || 'Sem contato'} · {new Date(lead.updated_at).toLocaleString('pt-BR')}</p>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </section>
             </>
@@ -327,16 +308,20 @@ export function App() {
           {page === 'Leads' ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-xl font-semibold">Leads</h1>
+                <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
                 <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      await api.importLegacyDb();
-                      await refresh();
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(event) => {
+                      handleCsvFile(event.target.files?.[0]);
+                      event.currentTarget.value = '';
                     }}
-                  >
-                    Importar dados
+                  />
+                  <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                    <Upload size={16} /> Importar CSV
                   </Button>
                   <Button
                     onClick={() => {
@@ -357,18 +342,22 @@ export function App() {
                 onChange={(next) => setFilter((prev) => ({ ...prev, ...next }))}
               />
               <section className="grid gap-3">
-                {filteredLeads.map((lead) => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    onEdit={(row) => {
-                      setEditingLead(row);
-                      setModalOpen(true);
-                    }}
-                    onDelete={(row) => setDeleteLead(row)}
-                    onUpdateStage={updateStage}
-                  />
-                ))}
+                {filteredLeads.length === 0 ? (
+                  <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead encontrado com os filtros atuais.</div>
+                ) : (
+                  filteredLeads.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onEdit={(row) => {
+                        setEditingLead(row);
+                        setModalOpen(true);
+                      }}
+                      onDelete={(row) => setDeleteLead(row)}
+                      onUpdateStage={updateStage}
+                    />
+                  ))
+                )}
               </section>
             </>
           ) : null}
@@ -385,13 +374,7 @@ export function App() {
             <Button variant="secondary" className="h-8" onClick={() => setShowFollowupToast(false)}>
               Fechar
             </Button>
-            <Button
-              className="h-8"
-              onClick={() => {
-                setPage('Leads');
-                setShowFollowupToast(false);
-              }}
-            >
+            <Button className="h-8" onClick={() => { setPage('Leads'); setShowFollowupToast(false); }}>
               Ver leads
             </Button>
           </div>
