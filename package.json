@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:source-integrity": "node scripts/check-source-artifacts.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",
