@@ -1,8 +1,44 @@
 export const STAGES = ['Novo', 'Contatado', 'Apresentação', 'Ganho', 'Pausado', 'Perdido'] as const;
 export type Stage = (typeof STAGES)[number];
 
-export const PROJECT_STATUSES = ['Discovery', 'Em negociação', 'Planejado', 'Pré-Venda', 'Aguardando Cliente', 'Aprovado', 'Faturado'] as const;
+export const PROJECT_STATUS_LABELS = {
+  DISCOVERY: 'Discovery',
+  NEGOCIACAO: 'Em negociação',
+  PLANEJADO: 'Planejado',
+  PRE_VENDA: 'Pré-venda',
+  AGUARDANDO_CLIENTE: 'Aguardando Cliente',
+  APROVADO: 'Aprovado',
+  FATURADO: 'Faturado',
+} as const;
+
+export const PROJECT_STATUSES = Object.keys(PROJECT_STATUS_LABELS) as Array<keyof typeof PROJECT_STATUS_LABELS>;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+const PROJECT_STATUS_NORMALIZATION_MAP: Record<string, ProjectStatus> = {
+  Discovery: 'DISCOVERY',
+  DISCOVERY: 'DISCOVERY',
+  'Em negociação': 'NEGOCIACAO',
+  NEGOCIACAO: 'NEGOCIACAO',
+  Planejado: 'PLANEJADO',
+  PLANEJADO: 'PLANEJADO',
+  'Pré-venda': 'PRE_VENDA',
+  'Pré-Venda': 'PRE_VENDA',
+  PRE_VENDA: 'PRE_VENDA',
+  'Aguardando Cliente': 'AGUARDANDO_CLIENTE',
+  AGUARDANDO_CLIENTE: 'AGUARDANDO_CLIENTE',
+  Aprovado: 'APROVADO',
+  APROVADO: 'APROVADO',
+  Faturado: 'FATURADO',
+  FATURADO: 'FATURADO',
+};
+
+export function normalizeProjectStatus(status: string | null | undefined): ProjectStatus {
+  return PROJECT_STATUS_NORMALIZATION_MAP[status ?? ''] ?? 'DISCOVERY';
+}
+
+export function getProjectStatusLabel(status: string | null | undefined): string {
+  return PROJECT_STATUS_LABELS[normalizeProjectStatus(status)];
+}
 
 export interface Lead {
   id: number;

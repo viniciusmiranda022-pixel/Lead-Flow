@@ -46,6 +46,7 @@ import {
   stageColorMap,
 } from "./theme/meta";
 import {
+  PROJECT_STATUS_LABELS,
   PROJECT_STATUSES,
   STAGES,
   type Collaborator,
@@ -56,6 +57,7 @@ import {
   type Project,
   type ProjectPayload,
   type ProjectStatus,
+  normalizeProjectStatus,
   type Stage,
   type Customer,
   type CustomerPayload,
@@ -156,7 +158,7 @@ export function App() {
       );
       setLeads(leadRows);
       setDashboard(dashboardData);
-      setProjects(projectRows);
+      setProjects(projectRows.map((project) => ({ ...project, status: normalizeProjectStatus(project.status) })));
       setCollaborators(collabRows);
       setCustomers(customerRows);
       setContactsByCustomer(Object.fromEntries(contactRows));
@@ -292,7 +294,7 @@ export function App() {
       .filter((project) =>
         projectFilter.status === "Todos"
           ? true
-          : project.status === projectFilter.status,
+          : project.status === normalizeProjectStatus(projectFilter.status),
       )
       .filter((project) =>
         projectFilter.leadId === "Todos"
@@ -331,9 +333,22 @@ export function App() {
     total: dashboard?.by_status[stage] ?? 0,
     color: stageColorMap[stage],
   }));
+  const projectStatusTotals = useMemo(() => {
+    const totals: Record<ProjectStatus, number> = Object.fromEntries(
+      PROJECT_STATUSES.map((status) => [status, 0]),
+    ) as Record<ProjectStatus, number>;
+
+    Object.entries(dashboard?.projects_by_status ?? {}).forEach(([status, total]) => {
+      const canonicalStatus = normalizeProjectStatus(status);
+      totals[canonicalStatus] += total;
+    });
+
+    return totals;
+  }, [dashboard]);
+
   const projectsStatusChartData = PROJECT_STATUSES.map((stage) => ({
-    stage,
-    total: dashboard?.projects_by_status[stage] ?? 0,
+    stage: PROJECT_STATUS_LABELS[stage],
+    total: projectStatusTotals[stage],
     color: projectStatusColorMap[stage],
   }));
   const topInterestsData = (dashboard?.by_interest ?? []).map(
@@ -346,21 +361,21 @@ export function App() {
     {
       label: "A receber (Aprovado)",
       value: dashboard?.approved_total ?? 0,
-      color: projectStatusColorMap.Aprovado,
+      color: projectStatusColorMap.APROVADO,
     },
     {
       label: "Já recebido (Faturado)",
       value: dashboard?.invoiced_total ?? 0,
-      color: projectStatusColorMap.Faturado,
+      color: projectStatusColorMap.FATURADO,
     },
   ];
   const commissionByConsultantData = useMemo(() => {
     const allowedStatuses =
       commissionFilter === "Aprovado"
-        ? ["Aprovado"]
+        ? ["APROVADO"]
         : commissionFilter === "Faturado"
-          ? ["Faturado"]
-          : ["Aprovado", "Faturado"];
+          ? ["FATURADO"]
+          : ["APROVADO", "FATURADO"];
     const totals = new Map<number, { name: string; total: number }>();
     projects
       .filter((project) => allowedStatuses.includes(project.status))
@@ -907,7 +922,7 @@ export function App() {
                   <option value="Todos">Todos status</option>
                   {PROJECT_STATUSES.map((status) => (
                     <option key={status} value={status}>
-                      {status}
+                      {PROJECT_STATUS_LABELS[status]}
                     </option>
                   ))}
                 </select>
@@ -947,18 +962,18 @@ export function App() {
                         </div>
                         <select
                           className="lf-input max-w-48"
-                          value={project.status}
+                          value={normalizeProjectStatus(project.status)}
                           onChange={async (e) => {
                             await api.updateProjectStatus(
                               project.id,
-                              e.target.value as ProjectStatus,
+                              normalizeProjectStatus(e.target.value),
                             );
                             await refresh();
                           }}
                         >
                           {PROJECT_STATUSES.map((status) => (
                             <option key={status} value={status}>
-                              {status}
+                              {PROJECT_STATUS_LABELS[status]}
                             </option>
                           ))}
                         </select>

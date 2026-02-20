@@ -1,7 +1,16 @@
 import { Mail, MapPin, MoreVertical, Phone, Trash2, Pencil, MessageCircle, CalendarClock, Plus, Star, TriangleAlert } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useEffect, useRef, useState } from 'react';
-import { PROJECT_STATUSES, STAGES, type Lead, type Project, type ProjectStatus, type Stage } from '../types';
+import {
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUSES,
+  STAGES,
+  normalizeProjectStatus,
+  type Lead,
+  type Project,
+  type ProjectStatus,
+  type Stage,
+} from '../types';
 import { Badge } from './Badge';
 import { Button } from './ui/Button';
 import { getStageMeta } from '../theme/meta';
@@ -151,13 +160,13 @@ export function LeadCard({ lead, projects, onEdit, onDelete, onUpdateStage, onCr
                 <div className="flex items-center justify-between gap-2">
                   <strong className="truncate">{project.nome_projeto}</strong>
                   <select
-                    value={project.status}
-                    onChange={(event) => onUpdateProjectStatus(project, event.target.value as ProjectStatus)}
+                    value={normalizeProjectStatus(project.status)}
+                    onChange={(event) => onUpdateProjectStatus(project, normalizeProjectStatus(event.target.value))}
                     className="rounded border border-slate-300 px-2 py-0.5 text-xs"
                   >
                     {PROJECT_STATUSES.map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {PROJECT_STATUS_LABELS[status]}
                       </option>
                     ))}
                   </select>

@@ -11,12 +11,13 @@ import {
   YAxis,
 } from "recharts";
 import {
+  PROJECT_STATUS_LABELS,
   PROJECT_STATUSES,
+  normalizeProjectStatus,
   type Collaborator,
   type Lead,
   type Project,
   type ProjectPayload,
-  type ProjectStatus,
 } from "../types";
 import {
   calcCommissionByCollaborator,
@@ -43,7 +44,7 @@ interface Props {
 const defaults: ProjectPayload = {
   lead_id: 0,
   nome_projeto: "",
-  status: "Discovery",
+  status: "DISCOVERY",
   descricao: "",
   valor_estimado: null,
   valor_bruto_negociado: 0,
@@ -82,7 +83,7 @@ export function ProjectModal({
   useEffect(() => {
     if (!open) return;
     if (project) {
-      setPayload({ ...project });
+      setPayload({ ...project, status: normalizeProjectStatus(project.status) });
     } else {
       setPayload({ ...defaults, lead_id: leadId ?? 0 });
     }
@@ -214,13 +215,13 @@ export function ProjectModal({
                 onChange={(event) =>
                   setPayload((prev) => ({
                     ...prev,
-                    status: event.target.value as ProjectStatus,
+                    status: normalizeProjectStatus(event.target.value),
                   }))
                 }
               >
                 {PROJECT_STATUSES.map((status) => (
                   <option key={status} value={status}>
-                    {status}
+                    {PROJECT_STATUS_LABELS[status]}
                   </option>
                 ))}
               </select>
