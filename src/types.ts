@@ -28,9 +28,21 @@ export interface Lead {
   next_followup_at: string | null;
 }
 
-export interface LeadPayload
-  extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at' | 'next_followup_at'> {
+export interface LeadPayload extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at' | 'next_followup_at'> {
   next_followup_at: string;
+}
+
+export interface Collaborator {
+  id: number;
+  nome: string;
+  observacoes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollaboratorPayload {
+  nome: string;
+  observacoes?: string;
 }
 
 export interface Project {
@@ -40,6 +52,27 @@ export interface Project {
   status: ProjectStatus;
   descricao: string;
   valor_estimado: number | null;
+  valor_bruto_negociado: number;
+  valor_bruto_licencas: number;
+  valor_bruto_comissao_licencas: number;
+  valor_bruto_servico: number;
+  imposto_pct: number;
+  fundo_pct: number;
+  pct_fixo: number;
+  pct_prevenda: number;
+  pct_implantacao: number;
+  pct_comercial: number;
+  pct_indicacao: number;
+  previsao_faturamento: string;
+  repasse_adistec: number;
+  liquido_servico: number;
+  liquido_comissao_licencas: number;
+  total_liquido: number;
+  comercial_ids: number[];
+  prevenda_ids: number[];
+  implantacao_ids: number[];
+  indicacao_ids: number[];
+  fixo_ids: number[];
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +83,23 @@ export interface ProjectPayload {
   status: ProjectStatus;
   descricao?: string;
   valor_estimado?: number | null;
+  valor_bruto_negociado?: number;
+  valor_bruto_licencas?: number;
+  valor_bruto_comissao_licencas?: number;
+  valor_bruto_servico?: number;
+  imposto_pct?: number;
+  fundo_pct?: number;
+  pct_fixo?: number;
+  pct_prevenda?: number;
+  pct_implantacao?: number;
+  pct_comercial?: number;
+  pct_indicacao?: number;
+  previsao_faturamento?: string;
+  comercial_ids?: number[];
+  prevenda_ids?: number[];
+  implantacao_ids?: number[];
+  indicacao_ids?: number[];
+  fixo_ids?: number[];
 }
 
 export interface DashboardData {
@@ -59,6 +109,8 @@ export interface DashboardData {
   latest: Lead[];
   projects_by_status: Record<string, number>;
   attention_projects: Project[];
+  approved_total: number;
+  invoiced_total: number;
 }
 
 export interface ImportError {
