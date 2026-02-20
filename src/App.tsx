@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   Menu,
   Plus,
+  Settings,
   TriangleAlert,
   Upload,
   UserRoundX,
@@ -26,6 +27,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
 import leadflowIcon from "./assets/brand/leadflow-icon.svg";
 import leadflowWordmark from "./assets/brand/leadflow-wordmark.svg";
@@ -73,7 +75,8 @@ type Page =
   | "Leads Perdidos"
   | "Projetos"
   | "Colaboradores"
-  | "Relatórios";
+  | "Relatórios"
+  | "Settings";
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: "Dashboard", icon: LayoutDashboard },
@@ -83,6 +86,7 @@ const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: "Projetos", icon: FolderKanban },
   { label: "Colaboradores", icon: UsersRound },
   { label: "Relatórios", icon: FileBarChart },
+  { label: "Settings", icon: Settings },
 ];
 
 const isFollowupPending = (lead: Lead) => {
@@ -140,6 +144,10 @@ export function App() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" });
   const [commissionFilter, setCommissionFilter] = useState<"Aprovado+Faturado" | "Aprovado" | "Faturado">("Aprovado+Faturado");
+  const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [pendingRestorePath, setPendingRestorePath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -396,6 +404,61 @@ export function App() {
     if (!file) return;
     await api.importCsv(await file.text());
     await refresh();
+  };
+
+  const handleCreateBackup = async () => {
+    setSettingsMessage(null);
+    const destinationPath = await save({
+      defaultPath: `leadflow-backup-${new Date().toISOString().slice(0, 10)}.db`,
+      filters: [{ name: "SQLite backup", extensions: ["db", "sqlite", "sqlite3"] }],
+    });
+
+    if (!destinationPath) return;
+
+    setBackupLoading(true);
+    try {
+      const backupPath = await api.backupDatabase(destinationPath);
+      setSettingsMessage({ type: "success", text: `Backup criado com sucesso em: ${backupPath}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao criar backup.";
+      setSettingsMessage({ type: "error", text: message });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleRestoreSelection = async () => {
+    setSettingsMessage(null);
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "SQLite backup", extensions: ["db", "sqlite", "sqlite3"] }],
+    });
+
+    if (!selected || Array.isArray(selected)) return;
+
+    setPendingRestorePath(selected);
+  };
+
+  const handleRestoreConfirm = async () => {
+    if (!pendingRestorePath) return;
+
+    setRestoreLoading(true);
+    setSettingsMessage(null);
+    try {
+      const result = await api.restoreDatabase(pendingRestorePath);
+      setSettingsMessage({
+        type: "success",
+        text: `Restauração concluída. Backup automático pré-restore: ${result.preRestoreBackupPath}. Reinicie o app para aplicar com segurança.`,
+      });
+      setPendingRestorePath(null);
+      await refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao restaurar backup.";
+      setSettingsMessage({ type: "error", text: message });
+    } finally {
+      setRestoreLoading(false);
+    }
   };
 
   return (
@@ -1102,6 +1165,43 @@ export function App() {
           ) : null}
 
           {page === "Relatórios" ? <ReportsPanel leads={leads} /> : null}
+
+          {page === "Settings" ? (
+            <section className="space-y-4">
+              <h1 className="text-xl font-semibold">Settings</h1>
+              <div className="lf-card space-y-4 p-4">
+                <div>
+                  <h2 className="text-base font-semibold">Dados</h2>
+                  <p className="text-sm text-slate-600">
+                    Crie e restaure backups do banco local. Antes de restaurar, o LeadFlow gera um backup automático de segurança.
+                  </p>
+                </div>
+                {settingsMessage ? (
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      settingsMessage.type === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                        : "border-rose-200 bg-rose-50 text-rose-900"
+                    }`}
+                  >
+                    {settingsMessage.text}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleCreateBackup} disabled={backupLoading || restoreLoading}>
+                    {backupLoading ? "Criando backup..." : "Criar Backup"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={handleRestoreSelection}
+                    disabled={backupLoading || restoreLoading}
+                  >
+                    {restoreLoading ? "Restaurando..." : "Restaurar Backup"}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          ) : null}
         </main>
       </div>
       {showFollowupToast && pendingFollowups.length > 0 ? (
@@ -1173,6 +1273,14 @@ export function App() {
             await refresh();
           }
         }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingRestorePath)}
+        title="Restaurar backup"
+        description="Esta ação substituirá os dados atuais. Um backup automático pré-restore será criado antes da restauração."
+        onCancel={() => setPendingRestorePath(null)}
+        onConfirm={handleRestoreConfirm}
       />
     </div>
   );
