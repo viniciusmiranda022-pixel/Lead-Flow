@@ -543,9 +543,9 @@ export function App() {
           })}
         </nav>
       </aside>
-      <div className="md:pl-80">
+      <div className="min-h-screen md:pl-80">
         <header
-          className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur"
+          className="sticky top-0 z-20 border-b bg-white/90 shadow-sm backdrop-blur"
           style={{ borderColor: "var(--border)" }}
         >
           <div
@@ -566,7 +566,7 @@ export function App() {
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-8">
+        <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-8 pb-10">
           {loading ? (
             <p className="text-sm text-slate-500">Carregando...</p>
           ) : null}
@@ -792,6 +792,15 @@ export function App() {
                 </div>
               </section>
             </>
+          ) : null}
+
+          {page === "Dashboard" && !loading && !dashboard ? (
+            <section className="lf-card p-6">
+              <h2 className="text-lg font-semibold text-slate-900">Sem dados para exibir</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Não foi possível carregar o dashboard agora. Atualize os dados ou verifique a conexão do banco para restaurar os cartões e gráficos.
+              </p>
+            </section>
           ) : null}
 
           {page === "Leads" ? (
