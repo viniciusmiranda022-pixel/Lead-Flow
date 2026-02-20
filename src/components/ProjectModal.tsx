@@ -143,9 +143,9 @@ export function ProjectModal({
         type="text"
         inputMode="decimal"
         className="lf-input lf-focusable"
-        value={formatNumberPtBr((payload[key] as number) ?? 0, {
+        value={`${formatNumberPtBr((payload[key] as number) ?? 0, {
           maximumFractionDigits: 2,
-        })}
+        })}%`}
         onChange={(event) =>
           setPayload((prev) => ({
             ...prev,
