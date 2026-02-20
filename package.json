@@ -4,18 +4,19 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "check:source-integrity": "node scripts/check-source-artifacts.mjs",
+    "fix:source-artifacts": "node scripts/check-source-artifacts.mjs --fix",
+    "predev": "npm run check:source-integrity",
     "dev": "vite",
-    "build": "npm run check:source-integrity && tsc && vite build",
+    "prebuild": "npm run check:source-integrity",
+    "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "npm run check:source-integrity && tauri",
+    "lint": "tsc --noEmit",
+    "pretest": "npm run check:source-integrity",
     "test": "vitest run",
     "test:watch": "vitest",
- codex/fix-csv-importer-for-leadflow-lo003g
-    "check:source-integrity": "node scripts/check-source-artifacts.mjs",
-    "fix:source-artifacts": "node scripts/check-source-artifacts.mjs --fix"
-
-    "check:source-integrity": "node scripts/check-source-artifacts.mjs"
- main
+    "pretauri": "npm run check:source-integrity",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",

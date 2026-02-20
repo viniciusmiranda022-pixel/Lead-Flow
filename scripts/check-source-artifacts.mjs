@@ -1,81 +1,112 @@
- codex/fix-csv-importer-for-leadflow-lo003g
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { extname, join, relative } from 'node:path';
 
-const shouldFix = process.argv.includes('--fix');
-const targets = ['src/App.tsx', 'src-tauri/src/main.rs'];
+const root = process.cwd();
+const isFixMode = process.argv.includes('--fix');
+
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'target']);
+const CHECK_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.rs',
+  '.toml',
+  '.css',
+  '.svg',
+  '.md',
+  '.yml',
+  '.yaml',
+]);
+const CHECK_BASENAMES = new Set(['package.json', 'tauri.conf.json']);
+
 const codexLinePattern = /^\s*codex\/[\w.-]+\s*$/;
-const conflictLinePattern = /^(<{7}|={7}|>{7})/;
+const mergeMarkerPattern = /^(<{7}|={7}|>{7})/;
 
-const errors = [];
-for (const file of targets) {
-  const path = join(process.cwd(), file);
-  const lines = readFileSync(path, 'utf8').split('\n');
-  const cleaned = [];
+function walk(dir, files) {
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry);
+    const relPath = relative(root, fullPath);
+    const stats = statSync(fullPath);
+    if (stats.isDirectory()) {
+      if (!SKIP_DIRS.has(entry)) walk(fullPath, files);
+      continue;
+    }
+
+    const ext = extname(entry);
+    if (CHECK_EXTENSIONS.has(ext) || CHECK_BASENAMES.has(entry)) {
+      files.push(relPath);
+    }
+  }
+}
+
+function parseStrictJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (error) {
+    throw new Error(`${path} inválido: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+const files = [];
+walk(root, files);
+
+const findings = [];
+for (const file of files) {
+  const abs = join(root, file);
+  const lines = readFileSync(abs, 'utf8').split('\n');
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-
     if (codexLinePattern.test(line)) {
-      errors.push(`${file}:${i + 1} contains accidental branch token line: ${line.trim()}`);
-      if (shouldFix) {
-        continue;
+      findings.push(`${file}:${i + 1} contém token de branch acidental: ${line.trim()}`);
+    }
+    if (mergeMarkerPattern.test(line)) {
+      findings.push(`${file}:${i + 1} contém marcador de conflito: ${line.trim()}`);
+    }
+  }
+}
+
+try {
+  parseStrictJson('package.json');
+  const tauriConf = parseStrictJson('src-tauri/tauri.conf.json');
+
+  const iconPaths = [
+    ...(Array.isArray(tauriConf?.bundle?.icon) ? tauriConf.bundle.icon : []),
+    ...(typeof tauriConf?.bundle?.windows?.icon === 'string' ? [tauriConf.bundle.windows.icon] : []),
+  ];
+
+  const requiresIco = iconPaths.some((path) => /icon\.ico$/i.test(path));
+  if (requiresIco) {
+    const iconExists = iconPaths.some((path) => {
+      try {
+        return statSync(join(root, 'src-tauri', path)).isFile();
+      } catch {
+        return false;
       }
-    }
+    });
 
-    if (conflictLinePattern.test(line)) {
-      errors.push(`${file}:${i + 1} contains merge-conflict marker: ${line.trim()}`);
+    if (!iconExists) {
+      findings.push(
+        'src-tauri/tauri.conf.json referencia icon.ico, mas o arquivo não existe e não há geração automática configurada.',
+      );
     }
-
-    cleaned.push(line);
   }
-
-  if (shouldFix && cleaned.length !== lines.length) {
-    writeFileSync(path, `${cleaned.join('\n')}`);
-
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
-const targets = ['src/App.tsx', 'src-tauri/src/main.rs'];
-const forbiddenPatterns = [
-  /^\s*codex\/[\w.-]+\s*$/m,
-  /^<{7}|^={7}|^>{7}/m,
-];
-
-const errors = [];
-for (const file of targets) {
-  const content = readFileSync(join(process.cwd(), file), 'utf8');
-  for (const pattern of forbiddenPatterns) {
-    if (pattern.test(content)) {
-      errors.push(`${file} matches forbidden pattern: ${pattern}`);
-    }
- main
-  }
+} catch (error) {
+  findings.push(error instanceof Error ? error.message : String(error));
 }
 
-if (errors.length > 0) {
- codex/fix-csv-importer-for-leadflow-lo003g
-  if (shouldFix) {
-    console.warn('Source integrity: auto-fix applied where possible.');
-  }
+if (isFixMode) {
+  console.warn('Modo --fix não é suportado neste guardrail. Corrija os arquivos manualmente.');
+}
 
-  const remaining = errors.filter((e) => e.includes('merge-conflict marker'));
-  if (remaining.length > 0 || !shouldFix) {
-    console.error('Source integrity check failed:');
-    for (const err of errors) console.error(`- ${err}`);
-    if (shouldFix && remaining.length > 0) {
-      console.error('Merge-conflict markers require manual resolution.');
-    }
-    process.exit(1);
-  }
-
-  console.log('Source integrity fixed: accidental branch token lines removed.');
-  process.exit(0);
-
-  console.error('Source integrity check failed:');
-  for (const err of errors) console.error(`- ${err}`);
+if (findings.length > 0) {
+  console.error('Falha na verificação de integridade de fontes:');
+  for (const finding of findings) console.error(`- ${finding}`);
   process.exit(1);
- main
 }
 
-console.log('Source integrity check passed.');
+console.log('Integridade de fontes validada com sucesso.');

@@ -5,7 +5,11 @@ use csv::{ReaderBuilder, Trim};
 use dirs::{config_dir, data_dir};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 const STAGES: [&str; 6] = [
     "Novo",
@@ -413,10 +417,18 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
         ),
         ("interest", &["interesse", "interest"]),
         ("stage", &["status", "stage", "etapa", "fase"]),
-        ("created_at", &["criadoem", "createdat", "datacriacao", "criacao"]),
+        (
+            "created_at",
+            &["criadoem", "createdat", "datacriacao", "criacao"],
+        ),
         (
             "updated_at",
-            &["atualizadoem", "updatedat", "dataatualizacao", "atualizacao"],
+            &[
+                "atualizadoem",
+                "updatedat",
+                "dataatualizacao",
+                "atualizacao",
+            ],
         ),
     ];
 
@@ -1160,50 +1172,11 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
     }
 
     let mut attention_stmt = conn
- codex/fix-csv-importer-for-leadflow-lo003g
-
- codex/fix-csv-importer-for-leadflow-e2x2yp
-
- codex/fix-csv-importer-for-leadflow-e04620
-
- codex/fix-csv-importer-for-leadflow-51bwwc
- main
- main
- main
         .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN (?1, ?2, ?3) ORDER BY updated_at DESC LIMIT 8")
         .map_err(|e| e.to_string())?;
     let [status_a, status_b, status_c] = PROJECT_ATTENTION_STATUSES;
     let attention_projects = attention_stmt
         .query_map(params![status_a, status_b, status_c], row_to_project)
- codex/fix-csv-importer-for-leadflow-lo003g
-
- codex/fix-csv-importer-for-leadflow-e2x2yp
-
- codex/fix-csv-importer-for-leadflow-e04620
-
-
- codex/fix-csv-importer-for-leadflow-2rcny1
-        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN (?1, ?2, ?3) ORDER BY updated_at DESC LIMIT 8")
-        .map_err(|e| e.to_string())?;
-    let attention_projects = attention_stmt
-        .query_map(
-            params![
-                PROJECT_ATTENTION_STATUSES[0],
-                PROJECT_ATTENTION_STATUSES[1],
-                PROJECT_ATTENTION_STATUSES[2]
-            ],
-            row_to_project,
-        )
-
-        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN ('Em negociação', 'Aguardando Cliente', 'Pré-Venda') ORDER BY updated_at DESC LIMIT 8")
-        .map_err(|e| e.to_string())?;
-    let attention_projects = attention_stmt
-        .query_map([], row_to_project)
- main
- main
- main
- main
- main
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -1290,8 +1263,8 @@ fn restore_database(backup_path: String) -> Result<RestoreDatabaseResult, String
         return Err("Arquivo inválido. Selecione um backup SQLite (.db/.sqlite/.sqlite3).".into());
     }
 
-    let metadata = fs::metadata(&source)
-        .map_err(|err| format!("Falha ao ler metadados do backup: {err}"))?;
+    let metadata =
+        fs::metadata(&source).map_err(|err| format!("Falha ao ler metadados do backup: {err}"))?;
     if metadata.len() < 1024 {
         return Err("Arquivo de backup inválido: tamanho muito pequeno.".into());
     }
