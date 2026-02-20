@@ -1,11 +1,33 @@
 import type { Collaborator, ProjectPayload } from '../types';
 
-export const toNumber = (value: unknown, fallback = 0) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number(value.replace(',', '.'));
-    if (Number.isFinite(parsed)) return parsed;
+export const parsePtBrNumber = (value: unknown) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
   }
+
+  if (typeof value !== 'string') {
+    return 0;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 0;
+  }
+
+  const normalized = trimmed.replace(/[^\d,.-]/g, '');
+  if (!normalized) {
+    return 0;
+  }
+
+  const hasComma = normalized.includes(',');
+  const withoutThousands = hasComma ? normalized.replace(/\./g, '') : normalized;
+  const decimalNormalized = hasComma ? withoutThousands.replace(',', '.') : withoutThousands;
+  return Number(decimalNormalized);
+};
+
+export const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = parsePtBrNumber(value);
+  if (Number.isFinite(parsed)) return parsed;
   return fallback;
 };
 
