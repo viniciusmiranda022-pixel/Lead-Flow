@@ -65,6 +65,7 @@ import {
   type CustomerPayload,
   type Contact,
   type ContactPayload,
+  type ImportResult,
 } from "./types";
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
@@ -145,6 +146,7 @@ export function App() {
   const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" });
   const [commissionFilter, setCommissionFilter] = useState<"Aprovado+Faturado" | "Aprovado" | "Faturado">("Aprovado+Faturado");
   const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [pendingRestorePath, setPendingRestorePath] = useState<string | null>(null);
@@ -402,8 +404,32 @@ export function App() {
   }, [projects, collaborators, commissionFilter]);
   const handleCsvFile = async (file?: File | null) => {
     if (!file) return;
-    await api.importCsv(await file.text());
-    await refresh();
+
+    try {
+      const result = await api.importCsv(await file.text());
+      setCsvImportResult(result);
+      await refresh();
+    } catch (error) {
+      const message =
+        typeof error === "string"
+          ? error
+          : error && typeof error === "object" && "message" in error
+            ? String((error as { message?: unknown }).message ?? "Falha ao importar CSV.")
+            : "Falha ao importar CSV.";
+
+      setCsvImportResult({
+        imported: 0,
+        skipped: 1,
+        errors: [
+          {
+            row: 0,
+            company: "",
+            email: "",
+            message,
+          },
+        ],
+      });
+    }
   };
 
   const handleCreateBackup = async () => {
@@ -800,6 +826,22 @@ export function App() {
                   </Button>
                 </div>
               </div>
+              {csvImportResult ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                  <p className="font-semibold text-slate-900">Resumo da importação</p>
+                  <p>Importados: {csvImportResult.imported} · Ignorados: {csvImportResult.skipped} · Erros: {csvImportResult.errors.length}</p>
+                  {csvImportResult.errors.length > 0 ? (
+                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-5 text-xs text-rose-700">
+                      {csvImportResult.errors.map((item, index) => (
+                        <li key={`${item.row}-${index}`}>
+                          Linha {item.row || "?"}: {item.message}
+                          {item.email ? ` (${item.email})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
               <FiltersBar
                 search={filter.search}
                 status={filter.status}
