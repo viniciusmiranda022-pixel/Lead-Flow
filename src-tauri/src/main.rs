@@ -80,6 +80,27 @@ struct Project {
     status: String,
     descricao: String,
     valor_estimado: Option<f64>,
+    valor_bruto_negociado: f64,
+    valor_bruto_licencas: f64,
+    valor_bruto_comissao_licencas: f64,
+    valor_bruto_servico: f64,
+    imposto_pct: f64,
+    fundo_pct: f64,
+    pct_fixo: f64,
+    pct_prevenda: f64,
+    pct_implantacao: f64,
+    pct_comercial: f64,
+    pct_indicacao: f64,
+    previsao_faturamento: String,
+    repasse_adistec: f64,
+    liquido_servico: f64,
+    liquido_comissao_licencas: f64,
+    total_liquido: f64,
+    comercial_ids: Vec<i64>,
+    prevenda_ids: Vec<i64>,
+    implantacao_ids: Vec<i64>,
+    indicacao_ids: Vec<i64>,
+    fixo_ids: Vec<i64>,
     created_at: String,
     updated_at: String,
 }
@@ -91,6 +112,38 @@ struct ProjectPayload {
     status: String,
     descricao: Option<String>,
     valor_estimado: Option<f64>,
+    valor_bruto_negociado: Option<f64>,
+    valor_bruto_licencas: Option<f64>,
+    valor_bruto_comissao_licencas: Option<f64>,
+    valor_bruto_servico: Option<f64>,
+    imposto_pct: Option<f64>,
+    fundo_pct: Option<f64>,
+    pct_fixo: Option<f64>,
+    pct_prevenda: Option<f64>,
+    pct_implantacao: Option<f64>,
+    pct_comercial: Option<f64>,
+    pct_indicacao: Option<f64>,
+    previsao_faturamento: Option<String>,
+    comercial_ids: Option<Vec<i64>>,
+    prevenda_ids: Option<Vec<i64>>,
+    implantacao_ids: Option<Vec<i64>>,
+    indicacao_ids: Option<Vec<i64>>,
+    fixo_ids: Option<Vec<i64>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Collaborator {
+    id: i64,
+    nome: String,
+    observacoes: String,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CollaboratorPayload {
+    nome: String,
+    observacoes: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +154,8 @@ struct DashboardData {
     latest: Vec<Lead>,
     projects_by_status: HashMap<String, i64>,
     attention_projects: Vec<Project>,
+    approved_total: f64,
+    invoiced_total: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -211,6 +266,19 @@ fn validate_project_payload(payload: &ProjectPayload) -> Result<(), String> {
         return Err("Status do projeto inválido".into());
     }
     Ok(())
+}
+
+fn project_net(gross: f64, imposto_pct: f64, fundo_pct: f64) -> f64 {
+    gross * (1.0 - imposto_pct / 100.0) * (1.0 - fundo_pct / 100.0)
+}
+
+fn vec_json(ids: &Option<Vec<i64>>) -> String {
+    serde_json::to_string(ids.as_ref().unwrap_or(&Vec::new())).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn parse_ids(raw: Option<String>) -> Vec<i64> {
+    raw.and_then(|s| serde_json::from_str::<Vec<i64>>(&s).ok())
+        .unwrap_or_default()
 }
 
 fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String> {
@@ -395,11 +463,54 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS collaborators (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            observacoes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
     ensure_column(conn, "leads", "next_followup_at", "TEXT")?;
     ensure_column(conn, "leads", "country", "TEXT")?;
     ensure_column(conn, "leads", "state", "TEXT")?;
     ensure_column(conn, "leads", "city", "TEXT")?;
     ensure_column(conn, "leads", "rating", "INTEGER")?;
+    ensure_column(conn, "projects", "valor_bruto_negociado", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "valor_bruto_licencas", "REAL DEFAULT 0")?;
+    ensure_column(
+        conn,
+        "projects",
+        "valor_bruto_comissao_licencas",
+        "REAL DEFAULT 0",
+    )?;
+    ensure_column(conn, "projects", "valor_bruto_servico", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "imposto_pct", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "fundo_pct", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "pct_fixo", "REAL DEFAULT 10")?;
+    ensure_column(conn, "projects", "pct_prevenda", "REAL DEFAULT 10")?;
+    ensure_column(conn, "projects", "pct_implantacao", "REAL DEFAULT 5")?;
+    ensure_column(conn, "projects", "pct_comercial", "REAL DEFAULT 5")?;
+    ensure_column(conn, "projects", "pct_indicacao", "REAL DEFAULT 5")?;
+    ensure_column(conn, "projects", "previsao_faturamento", "TEXT")?;
+    ensure_column(conn, "projects", "repasse_adistec", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "liquido_servico", "REAL DEFAULT 0")?;
+    ensure_column(
+        conn,
+        "projects",
+        "liquido_comissao_licencas",
+        "REAL DEFAULT 0",
+    )?;
+    ensure_column(conn, "projects", "total_liquido", "REAL DEFAULT 0")?;
+    ensure_column(conn, "projects", "comercial_ids", "TEXT DEFAULT '[]'")?;
+    ensure_column(conn, "projects", "prevenda_ids", "TEXT DEFAULT '[]'")?;
+    ensure_column(conn, "projects", "implantacao_ids", "TEXT DEFAULT '[]'")?;
+    ensure_column(conn, "projects", "indicacao_ids", "TEXT DEFAULT '[]'")?;
+    ensure_column(conn, "projects", "fixo_ids", "TEXT DEFAULT '[]'")?;
 
     Ok(())
 }
@@ -475,8 +586,39 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         status: text(3)?,
         descricao: text(4)?,
         valor_estimado: row.get(5)?,
-        created_at: text(6)?,
-        updated_at: text(7)?,
+        valor_bruto_negociado: row.get::<_, Option<f64>>(6)?.unwrap_or(0.0),
+        valor_bruto_licencas: row.get::<_, Option<f64>>(7)?.unwrap_or(0.0),
+        valor_bruto_comissao_licencas: row.get::<_, Option<f64>>(8)?.unwrap_or(0.0),
+        valor_bruto_servico: row.get::<_, Option<f64>>(9)?.unwrap_or(0.0),
+        imposto_pct: row.get::<_, Option<f64>>(10)?.unwrap_or(0.0),
+        fundo_pct: row.get::<_, Option<f64>>(11)?.unwrap_or(0.0),
+        pct_fixo: row.get::<_, Option<f64>>(12)?.unwrap_or(10.0),
+        pct_prevenda: row.get::<_, Option<f64>>(13)?.unwrap_or(10.0),
+        pct_implantacao: row.get::<_, Option<f64>>(14)?.unwrap_or(5.0),
+        pct_comercial: row.get::<_, Option<f64>>(15)?.unwrap_or(5.0),
+        pct_indicacao: row.get::<_, Option<f64>>(16)?.unwrap_or(5.0),
+        previsao_faturamento: text(17)?,
+        repasse_adistec: row.get::<_, Option<f64>>(18)?.unwrap_or(0.0),
+        liquido_servico: row.get::<_, Option<f64>>(19)?.unwrap_or(0.0),
+        liquido_comissao_licencas: row.get::<_, Option<f64>>(20)?.unwrap_or(0.0),
+        total_liquido: row.get::<_, Option<f64>>(21)?.unwrap_or(0.0),
+        comercial_ids: parse_ids(row.get(22)?),
+        prevenda_ids: parse_ids(row.get(23)?),
+        implantacao_ids: parse_ids(row.get(24)?),
+        indicacao_ids: parse_ids(row.get(25)?),
+        fixo_ids: parse_ids(row.get(26)?),
+        created_at: text(27)?,
+        updated_at: text(28)?,
+    })
+}
+
+fn row_to_collaborator(row: &rusqlite::Row) -> rusqlite::Result<Collaborator> {
+    Ok(Collaborator {
+        id: row.get(0)?,
+        nome: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+        observacoes: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+        created_at: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+        updated_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
     })
 }
 
@@ -648,7 +790,7 @@ fn delete_lead(id: i64) -> Result<(), String> {
 fn list_projects() -> Result<Vec<Project>, String> {
     let conn = open_db()?;
     let mut stmt = conn
-        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects ORDER BY updated_at DESC")
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects ORDER BY updated_at DESC")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_project)
@@ -662,7 +804,7 @@ fn list_projects() -> Result<Vec<Project>, String> {
 fn list_projects_by_lead(lead_id: i64) -> Result<Vec<Project>, String> {
     let conn = open_db()?;
     let mut stmt = conn
-        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE lead_id = ? ORDER BY updated_at DESC")
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE lead_id = ? ORDER BY updated_at DESC")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([lead_id], row_to_project)
@@ -674,7 +816,7 @@ fn list_projects_by_lead(lead_id: i64) -> Result<Vec<Project>, String> {
 
 fn get_project(conn: &Connection, id: i64) -> Result<Project, String> {
     conn.query_row(
-        "SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE id = ?",
+        "SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE id = ?",
         [id],
         row_to_project,
     )
@@ -688,9 +830,18 @@ fn create_project(payload: ProjectPayload) -> Result<Project, String> {
     get_lead(&conn, payload.lead_id)?;
 
     let now = now_iso();
+    let imposto = payload.imposto_pct.unwrap_or(0.0);
+    let fundo = payload.fundo_pct.unwrap_or(0.0);
+    let bruto_licencas = payload.valor_bruto_licencas.unwrap_or(0.0);
+    let bruto_comissao_lic = payload.valor_bruto_comissao_licencas.unwrap_or(0.0);
+    let bruto_servico = payload.valor_bruto_servico.unwrap_or(0.0);
+    let repasse = bruto_licencas - bruto_comissao_lic;
+    let liquido_servico = project_net(bruto_servico, imposto, fundo);
+    let liquido_comissao_licencas = project_net(bruto_comissao_lic, imposto, fundo);
+    let total_liquido = liquido_servico + liquido_comissao_licencas;
     conn.execute(
-        "INSERT INTO projects (lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, now, now],
+        "INSERT INTO projects (lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
+        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, payload.valor_bruto_negociado.unwrap_or(0.0), bruto_licencas, bruto_comissao_lic, bruto_servico, imposto, fundo, payload.pct_fixo.unwrap_or(10.0), payload.pct_prevenda.unwrap_or(10.0), payload.pct_implantacao.unwrap_or(5.0), payload.pct_comercial.unwrap_or(5.0), payload.pct_indicacao.unwrap_or(5.0), payload.previsao_faturamento.as_deref().unwrap_or(""), repasse, liquido_servico, liquido_comissao_licencas, total_liquido, vec_json(&payload.comercial_ids), vec_json(&payload.prevenda_ids), vec_json(&payload.implantacao_ids), vec_json(&payload.indicacao_ids), vec_json(&payload.fixo_ids), now, now],
     )
     .map_err(|e| e.to_string())?;
 
@@ -703,9 +854,18 @@ fn update_project(id: i64, payload: ProjectPayload) -> Result<Project, String> {
     validate_project_payload(&payload)?;
     get_lead(&conn, payload.lead_id)?;
 
+    let imposto = payload.imposto_pct.unwrap_or(0.0);
+    let fundo = payload.fundo_pct.unwrap_or(0.0);
+    let bruto_licencas = payload.valor_bruto_licencas.unwrap_or(0.0);
+    let bruto_comissao_lic = payload.valor_bruto_comissao_licencas.unwrap_or(0.0);
+    let bruto_servico = payload.valor_bruto_servico.unwrap_or(0.0);
+    let repasse = bruto_licencas - bruto_comissao_lic;
+    let liquido_servico = project_net(bruto_servico, imposto, fundo);
+    let liquido_comissao_licencas = project_net(bruto_comissao_lic, imposto, fundo);
+    let total_liquido = liquido_servico + liquido_comissao_licencas;
     conn.execute(
-        "UPDATE projects SET lead_id = ?1, nome_projeto = ?2, status = ?3, descricao = ?4, valor_estimado = ?5, updated_at = ?6 WHERE id = ?7",
-        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, now_iso(), id],
+        "UPDATE projects SET lead_id = ?1, nome_projeto = ?2, status = ?3, descricao = ?4, valor_estimado = ?5, valor_bruto_negociado = ?6, valor_bruto_licencas = ?7, valor_bruto_comissao_licencas = ?8, valor_bruto_servico = ?9, imposto_pct = ?10, fundo_pct = ?11, pct_fixo = ?12, pct_prevenda = ?13, pct_implantacao = ?14, pct_comercial = ?15, pct_indicacao = ?16, previsao_faturamento = ?17, repasse_adistec = ?18, liquido_servico = ?19, liquido_comissao_licencas = ?20, total_liquido = ?21, comercial_ids = ?22, prevenda_ids = ?23, implantacao_ids = ?24, indicacao_ids = ?25, fixo_ids = ?26, updated_at = ?27 WHERE id = ?28",
+        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, payload.valor_bruto_negociado.unwrap_or(0.0), bruto_licencas, bruto_comissao_lic, bruto_servico, imposto, fundo, payload.pct_fixo.unwrap_or(10.0), payload.pct_prevenda.unwrap_or(10.0), payload.pct_implantacao.unwrap_or(5.0), payload.pct_comercial.unwrap_or(5.0), payload.pct_indicacao.unwrap_or(5.0), payload.previsao_faturamento.as_deref().unwrap_or(""), repasse, liquido_servico, liquido_comissao_licencas, total_liquido, vec_json(&payload.comercial_ids), vec_json(&payload.prevenda_ids), vec_json(&payload.implantacao_ids), vec_json(&payload.indicacao_ids), vec_json(&payload.fixo_ids), now_iso(), id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -730,6 +890,79 @@ fn update_project_status(id: i64, status: String) -> Result<Project, String> {
 fn delete_project(id: i64) -> Result<(), String> {
     let conn = open_db()?;
     conn.execute("DELETE FROM projects WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn list_collaborators() -> Result<Vec<Collaborator>, String> {
+    let conn = open_db()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, nome, observacoes, created_at, updated_at FROM collaborators ORDER BY nome",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], row_to_collaborator)
+        .map_err(|e| e.to_string())?;
+
+    let collaborators = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(collaborators)
+}
+
+#[tauri::command]
+fn create_collaborator(payload: CollaboratorPayload) -> Result<Collaborator, String> {
+    if payload.nome.trim().is_empty() {
+        return Err("Nome é obrigatório".into());
+    }
+    let conn = open_db()?;
+    let now = now_iso();
+    conn.execute(
+        "INSERT INTO collaborators (nome, observacoes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        params![payload.nome.trim(), payload.observacoes.as_deref().unwrap_or(""), now, now],
+    )
+    .map_err(|e| e.to_string())?;
+    let id = conn.last_insert_rowid();
+    conn.query_row(
+        "SELECT id, nome, observacoes, created_at, updated_at FROM collaborators WHERE id = ?",
+        [id],
+        row_to_collaborator,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_collaborator(id: i64, payload: CollaboratorPayload) -> Result<Collaborator, String> {
+    if payload.nome.trim().is_empty() {
+        return Err("Nome é obrigatório".into());
+    }
+    let conn = open_db()?;
+    conn.execute(
+        "UPDATE collaborators SET nome=?1, observacoes=?2, updated_at=?3 WHERE id=?4",
+        params![
+            payload.nome.trim(),
+            payload.observacoes.as_deref().unwrap_or(""),
+            now_iso(),
+            id
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.query_row(
+        "SELECT id, nome, observacoes, created_at, updated_at FROM collaborators WHERE id = ?",
+        [id],
+        row_to_collaborator,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_collaborator(id: i64) -> Result<(), String> {
+    let conn = open_db()?;
+    conn.execute("DELETE FROM collaborators WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -796,12 +1029,28 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
     }
 
     let mut attention_stmt = conn
-        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE status IN ('Em negociação', 'Aguardando Cliente', 'Pré-Venda') ORDER BY updated_at DESC LIMIT 8")
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN ('Em negociação', 'Aguardando Cliente', 'Pré-Venda') ORDER BY updated_at DESC LIMIT 8")
         .map_err(|e| e.to_string())?;
     let attention_projects = attention_stmt
         .query_map([], row_to_project)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let approved_total: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(total_liquido), 0) FROM projects WHERE status = 'Aprovado'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let invoiced_total: f64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(total_liquido), 0) FROM projects WHERE status = 'Faturado'",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     Ok(DashboardData {
@@ -811,6 +1060,8 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         latest,
         projects_by_status,
         attention_projects,
+        approved_total,
+        invoiced_total,
     })
 }
 
@@ -841,6 +1092,10 @@ fn main() {
             update_project,
             update_project_status,
             delete_project,
+            list_collaborators,
+            create_collaborator,
+            update_collaborator,
+            delete_collaborator,
             get_dashboard_data,
             import_legacy_db,
             import_csv

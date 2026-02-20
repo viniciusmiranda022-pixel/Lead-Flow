@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BriefcaseBusiness, FileBarChart, FolderKanban, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, FileBarChart, FolderKanban, LayoutDashboard, Menu, Plus, TriangleAlert, Upload, UserRoundX, Users, UsersRound, X } from 'lucide-react';
 import { api } from './api';
 import leadflowIcon from './assets/brand/leadflow-icon.svg';
 import leadflowWordmark from './assets/brand/leadflow-wordmark.svg';
@@ -13,11 +13,11 @@ import { ProjectModal } from './components/ProjectModal';
 import { ReportsPanel } from './components/ReportsPanel';
 import { StatCard } from './components/StatCard';
 import { Button } from './components/ui/Button';
-import { getStageMeta, interestChartPalette, stageColorMap } from './theme/meta';
-import { PROJECT_STATUSES, STAGES, type DashboardData, type Lead, type LeadPayload, type Project, type ProjectPayload, type ProjectStatus, type Stage } from './types';
+import { interestChartPalette, stageColorMap } from './theme/meta';
+import { PROJECT_STATUSES, STAGES, type Collaborator, type CollaboratorPayload, type DashboardData, type Lead, type LeadPayload, type Project, type ProjectPayload, type ProjectStatus, type Stage } from './types';
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Projetos' | 'Relatórios';
+type Page = 'Dashboard' | 'Leads' | 'Carteira de Clientes' | 'Leads Perdidos' | 'Projetos' | 'Colaboradores' | 'Relatórios';
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Dashboard', icon: LayoutDashboard },
@@ -25,22 +25,24 @@ const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: 'Carteira de Clientes', icon: BriefcaseBusiness },
   { label: 'Leads Perdidos', icon: UserRoundX },
   { label: 'Projetos', icon: FolderKanban },
+  { label: 'Colaboradores', icon: UsersRound },
   { label: 'Relatórios', icon: FileBarChart }
 ];
 
-function isFollowupPending(lead: Lead) {
+const isFollowupPending = (lead: Lead) => {
   if (!lead.next_followup_at || lead.stage === 'Pausado') return false;
   const followupDate = new Date(`${lead.next_followup_at}T00:00:00`);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return followupDate <= today;
-}
+};
 
 export function App() {
   const [page, setPage] = useState<Page>('Dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ search: '', status: 'Todos', interest: 'Todos', rating: 'Todos', sort: 'Recentes' });
@@ -55,15 +57,18 @@ export function App() {
   const [followupTick, setFollowupTick] = useState(0);
   const [showFollowupToast, setShowFollowupToast] = useState(false);
   const [wonSearch, setWonSearch] = useState('');
+  const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
+  const [collabPayload, setCollabPayload] = useState<CollaboratorPayload>({ nome: '', observacoes: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const [leadRows, dashboardData, projectRows] = await Promise.all([api.listLeads(), api.getDashboard(), api.listProjects()]);
+      const [leadRows, dashboardData, projectRows, collabRows] = await Promise.all([api.listLeads(), api.getDashboard(), api.listProjects(), api.listCollaborators()]);
       setLeads(leadRows);
       setDashboard(dashboardData);
       setProjects(projectRows);
+      setCollaborators(collabRows);
     } finally {
       setLoading(false);
     }
@@ -108,27 +113,15 @@ export function App() {
       .filter((lead) => (filter.status === 'Todos' ? true : lead.stage === filter.status))
       .filter((lead) => (filter.interest === 'Todos' ? true : lead.interest === filter.interest))
       .filter(applyRatingFilter)
-      .filter((lead) =>
-        normalizedSearch
-          ? [lead.company, lead.contact_name, lead.email, lead.phone].join(' ').toLowerCase().includes(normalizedSearch)
-          : true
-      )
-      .sort((a, b) => {
-        if (filter.sort === 'Empresa') return a.company.localeCompare(b.company);
-        if (filter.sort === 'Rating') return (b.rating ?? 0) - (a.rating ?? 0);
-        return b.updated_at.localeCompare(a.updated_at);
-      });
+      .filter((lead) => normalizedSearch ? [lead.company, lead.contact_name, lead.email, lead.phone].join(' ').toLowerCase().includes(normalizedSearch) : true)
+      .sort((a, b) => filter.sort === 'Empresa' ? a.company.localeCompare(b.company) : filter.sort === 'Rating' ? (b.rating ?? 0) - (a.rating ?? 0) : b.updated_at.localeCompare(a.updated_at));
   }, [leads, filter]);
 
   const pendingFollowups = useMemo(() => leads.filter(isFollowupPending).sort((a, b) => (a.next_followup_at ?? '').localeCompare(b.next_followup_at ?? '')), [leads, followupTick]);
   const lostLeads = useMemo(() => [...leads].filter((lead) => lead.stage === 'Perdido').sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [leads]);
   const wonLeads = useMemo(() => [...leads].filter((lead) => lead.stage === 'Ganho').sort((a, b) => b.updated_at.localeCompare(a.updated_at)), [leads]);
-  const filteredWonLeads = useMemo(() => {
-    const search = wonSearch.trim().toLowerCase();
-    return wonLeads.filter((lead) => (search ? [lead.company, lead.contact_name].join(' ').toLowerCase().includes(search) : true)).filter(applyRatingFilter);
-  }, [wonLeads, wonSearch, filter.rating]);
+  const filteredWonLeads = useMemo(() => wonLeads.filter((lead) => ([lead.company, lead.contact_name].join(' ').toLowerCase().includes(wonSearch.trim().toLowerCase()))).filter(applyRatingFilter), [wonLeads, wonSearch, filter.rating]);
   const filteredLostLeads = useMemo(() => lostLeads.filter(applyRatingFilter), [lostLeads, filter.rating]);
-
   const wonPendingFollowups = useMemo(() => filteredWonLeads.filter(isFollowupPending), [filteredWonLeads]);
   const lostPendingFollowups = useMemo(() => filteredLostLeads.filter(isFollowupPending), [filteredLostLeads]);
 
@@ -137,101 +130,55 @@ export function App() {
     return projects
       .filter((project) => (projectFilter.status === 'Todos' ? true : project.status === projectFilter.status))
       .filter((project) => (projectFilter.leadId === 'Todos' ? true : project.lead_id === Number(projectFilter.leadId)))
-      .filter((project) => {
-        if (!search) return true;
-        const lead = leads.find((item) => item.id === project.lead_id);
-        return `${project.nome_projeto} ${lead?.company ?? ''}`.toLowerCase().includes(search);
-      });
+      .filter((project) => !search ? true : `${project.nome_projeto} ${leads.find((item) => item.id === project.lead_id)?.company ?? ''}`.toLowerCase().includes(search));
   }, [projects, leads, projectFilter]);
 
-  useEffect(() => {
-    if (pendingFollowups.length > 0) setShowFollowupToast(true);
-  }, [pendingFollowups.length]);
+  useEffect(() => { if (pendingFollowups.length > 0) setShowFollowupToast(true); }, [pendingFollowups.length]);
 
-  const saveLead = async (payload: LeadPayload) => {
-    if (editingLead) await api.updateLead(editingLead.id, payload);
-    else await api.createLead(payload);
-    await refresh();
-  };
-
-  const saveProject = async (payload: ProjectPayload, id?: number) => {
-    if (id) await api.updateProject(id, payload);
-    else await api.createProject(payload);
-    await refresh();
-  };
-
-  const updateStage = async (lead: Lead, stage: Stage) => {
-    await api.updateStage(lead.id, stage);
-    await refresh();
-  };
-
+  const saveLead = async (payload: LeadPayload) => { if (editingLead) await api.updateLead(editingLead.id, payload); else await api.createLead(payload); await refresh(); };
+  const saveProject = async (payload: ProjectPayload, id?: number) => { if (id) await api.updateProject(id, payload); else await api.createProject(payload); await refresh(); };
+  const updateStage = async (lead: Lead, stage: Stage) => { await api.updateStage(lead.id, stage); await refresh(); };
   const statusChartData = STAGES.map((stage) => ({ stage, total: dashboard?.by_status[stage] ?? 0, color: stageColorMap[stage] }));
+  const projectsStatusChartData = PROJECT_STATUSES.map((stage) => ({ stage, total: dashboard?.projects_by_status[stage] ?? 0 }));
+  const handleCsvFile = async (file?: File | null) => { if (!file) return; await api.importCsv(await file.text()); await refresh(); };
 
-  const handleCsvFile = async (file?: File | null) => {
-    if (!file) return;
-    const text = await file.text();
-    await api.importCsv(text);
-    await refresh();
-  };
+  return <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+    <div className={`fixed inset-0 z-30 bg-slate-900/50 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`} onClick={() => setSidebarOpen(false)} />
+    <aside className={`fixed inset-y-0 left-0 z-40 w-80 border-r p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{ borderColor: 'var(--border)', background: 'linear-gradient(180deg, #EFF6FF 0%, #F8FAFC 45%, #FFFFFF 100%)' }}>
+      <div className="mb-8 flex items-center justify-between"><div className="flex items-center gap-3"><img src={leadflowIcon} alt="LeadFlow" className="h-9 w-9 shrink-0 object-contain" /><img src={leadflowWordmark} alt="LeadFlow" className="h-9 w-[220px] object-contain object-left" /></div><button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}><X size={18} /></button></div>
+      <nav className="space-y-1">{menuItems.map((item) => { const Icon = item.icon; return <button key={item.label} className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition ${page === item.label ? 'text-white' : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'}`} style={page === item.label ? { background: '#2563EB' } : undefined} onClick={() => { setPage(item.label); setSidebarOpen(false); }}><Icon size={16} strokeWidth={2} />{item.label}</button>; })}</nav>
+    </aside>
+    <div className="md:pl-80"><header className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur" style={{ borderColor: 'var(--border)' }}><div className="h-0.5 w-full" style={{ background: 'var(--brand-gradient)' }} /><div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4"><div className="flex min-w-0 items-center gap-3"><button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button><p className="truncate text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">{page}</p></div></div></header>
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-8">
+        {loading ? <p className="text-sm text-slate-500">Carregando...</p> : null}
+        {pendingFollowups.length > 0 ? <section className="rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-900"><TriangleAlert size={16} />Você tem {pendingFollowups.length} follow-up(s) pendente(s).</p></section> : null}
 
-  return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <div className={`fixed inset-0 z-30 bg-slate-900/50 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`} onClick={() => setSidebarOpen(false)} />
-      <aside className={`fixed inset-y-0 left-0 z-40 w-80 border-r p-4 shadow-xl transition-transform md:translate-x-0 md:shadow-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} style={{ borderColor: 'var(--border)', background: 'linear-gradient(180deg, #EFF6FF 0%, #F8FAFC 45%, #FFFFFF 100%)' }}>
-        <div className="mb-8 flex items-center justify-between"><div className="flex items-center gap-3"><img src={leadflowIcon} alt="LeadFlow" className="h-9 w-9 shrink-0 object-contain" /><img src={leadflowWordmark} alt="LeadFlow" className="h-9 w-[220px] object-contain object-left" /></div><button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(false)}><X size={18} /></button></div>
-        <nav className="space-y-1">{menuItems.map((item) => { const Icon = item.icon; return <button key={item.label} className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition ${page === item.label ? 'text-white' : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'}`} style={page === item.label ? { background: '#2563EB' } : undefined} onClick={() => { setPage(item.label); setSidebarOpen(false); }}><Icon size={16} strokeWidth={2} />{item.label}</button>; })}</nav>
-      </aside>
+        {page === 'Dashboard' && dashboard ? <>
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><button type="button" className="text-left" onClick={() => setPage('Leads')}><StatCard title="Total" value={dashboard.total} subtitle="👥 Leads no funil" /></button>{STAGES.map((stage) => <button key={stage} type="button" className="text-left"><StatCard title={stage} value={dashboard.by_status[stage] ?? 0} stage={stage} /></button>)}</section>
+          <section className="grid gap-4 xl:grid-cols-2"><div className="lf-card p-4"><h2 className="mb-3 lf-section-title">Leads por Status</h2><div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusChartData}><CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" /><XAxis dataKey="stage" /><YAxis /><Tooltip /><Bar dataKey="total" radius={[8, 8, 0, 0]}>{statusChartData.map((entry) => <Cell key={entry.stage} fill={entry.color} />)}</Bar></BarChart></ResponsiveContainer></div></div>
+          <div className="lf-card p-4"><h2 className="mb-3 lf-section-title">Top Interesses</h2><div className="h-72">{dashboard.by_interest.length === 0 ? <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">Sem dados.</div> : <div className="grid h-full grid-cols-2 gap-3"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dashboard.by_interest} dataKey="value" nameKey="name" outerRadius={90} innerRadius={56}>{dashboard.by_interest.map((_, index) => <Cell key={index} fill={interestChartPalette[index % interestChartPalette.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>}</div></div></section>
+          <section className="grid gap-4 xl:grid-cols-2"><div className="lf-card p-4"><h2 className="mb-3 lf-section-title">Projetos por status</h2><div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={projectsStatusChartData}><CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" /><XAxis dataKey="stage" angle={-15} textAnchor="end" height={80} interval={0} /><YAxis /><Tooltip /><Bar dataKey="total" fill="#2563eb" radius={[8, 8, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
+          <div className="lf-card p-4"><h2 className="mb-2 lf-section-title">Financeiro de projetos</h2><p className="text-sm">A receber (Aprovado): <strong>{dashboard.approved_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></p><p className="text-sm">Já recebido (Faturado): <strong>{dashboard.invoiced_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></p></div></section>
+        </> : null}
 
-      <div className="md:pl-80"><header className="sticky top-0 z-20 border-b bg-white/85 backdrop-blur" style={{ borderColor: 'var(--border)' }}><div className="h-0.5 w-full" style={{ background: 'var(--brand-gradient)' }} /><div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4"><div className="flex min-w-0 items-center gap-3"><button className="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button><p className="truncate text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">{page}</p></div></div></header>
+        {page === 'Leads' ? <><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-xl font-semibold text-slate-900">Leads</h1><div className="flex gap-2"><input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { handleCsvFile(event.target.files?.[0]); event.currentTarget.value = ''; }} /><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Importar CSV</Button><Button onClick={() => { setEditingLead(undefined); setModalOpen(true); }}><Plus size={16} />Novo Lead</Button></div></div><FiltersBar search={filter.search} status={filter.status} interest={filter.interest} rating={filter.rating} sort={filter.sort} interests={interests} onChange={(next) => setFilter((prev) => ({ ...prev, ...next }))} /><section className="grid gap-3">{filteredLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setEditingProject(undefined); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section></> : null}
 
-        <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-8">
-          {loading ? <p className="text-sm text-slate-500">Carregando...</p> : null}
+        {page === 'Carteira de Clientes' ? <><h1 className="text-xl font-semibold">Leads Ganhos</h1>{wonPendingFollowups.length > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{wonPendingFollowups.length} leads ganhos com follow-up pendente.</div> : null}<section className="grid gap-3">{filteredWonLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section></> : null}
 
-          {pendingFollowups.length > 0 ? <section className="rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-900"><TriangleAlert size={16} />Você tem {pendingFollowups.length} follow-up(s) pendente(s). Realize contato com esses leads.</p></section> : null}
+        {page === 'Leads Perdidos' ? <><h1 className="text-xl font-semibold">Leads Perdidos</h1>{lostPendingFollowups.length > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{lostPendingFollowups.length} leads perdidos com follow-up pendente.</div> : null}<section className="grid gap-3">{filteredLostLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section></> : null}
 
-          {page === 'Dashboard' && dashboard ? <>
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><button type="button" className="text-left" onClick={() => { setPage('Leads'); setFilter((f) => ({ ...f, status: 'Todos' })); }}><StatCard title="Total" value={dashboard.total} subtitle="👥 Leads no funil" /></button>{STAGES.map((stage) => <button key={stage} type="button" className="text-left" onClick={() => { if (stage === 'Perdido') return setPage('Leads Perdidos'); if (stage === 'Ganho') return setPage('Carteira de Clientes'); setPage('Leads'); setFilter((f) => ({ ...f, status: stage })); }}><StatCard title={stage} value={dashboard.by_status[stage] ?? 0} stage={stage} /></button>)}</section>
-            <section className="grid gap-4 xl:grid-cols-2"><div className="lf-card p-4"><h2 className="mb-3 lf-section-title">Leads por Status</h2><div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusChartData}><CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" /><XAxis dataKey="stage" tick={{ fontSize: 12, fill: '#64748B' }} /><YAxis tick={{ fontSize: 12, fill: '#64748B' }} /><Tooltip /><Bar dataKey="total" radius={[8, 8, 0, 0]}>{statusChartData.map((entry) => <Cell key={entry.stage} fill={entry.color} fillOpacity={entry.total === 0 ? 0.25 : 1} />)}</Bar></BarChart></ResponsiveContainer></div></div>
-            <div className="lf-card p-4"><h2 className="mb-3 lf-section-title">Top Interesses</h2><div className="h-72">{dashboard.by_interest.length === 0 ? <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">Sem dados de interesse para exibir.</div> : <div className="grid h-full grid-cols-2 gap-3"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dashboard.by_interest} dataKey="value" nameKey="name" outerRadius={90} innerRadius={56}>{dashboard.by_interest.map((_, index) => <Cell key={index} fill={interestChartPalette[index % interestChartPalette.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div className="overflow-auto pr-1"><ul className="space-y-2">{dashboard.by_interest.map((item, index) => <li key={item.name} className="flex items-center justify-between text-sm text-slate-700"><span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: interestChartPalette[index % interestChartPalette.length] }} />{item.name}</span><strong>{item.value}</strong></li>)}</ul></div></div>}</div></div></section>
-            <section className="lf-card p-4"><h2 className="lf-section-title">Projetos por status</h2><div className="mt-3 grid gap-2 md:grid-cols-4">{PROJECT_STATUSES.map((status) => <div key={status} className="rounded border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-600">{status}</p><p className="text-lg font-semibold">{dashboard.projects_by_status?.[status] ?? 0}</p></div>)}</div></section>
-            <section className="lf-card p-4"><h2 className="lf-section-title">Projetos que precisam de atenção</h2><div className="mt-3 space-y-2">{dashboard.attention_projects.length === 0 ? <p className="text-sm text-slate-500">Nenhum projeto de atenção no momento.</p> : dashboard.attention_projects.map((project) => <div key={project.id} className="rounded border border-slate-200 p-2 text-sm"><strong>{project.nome_projeto}</strong> · {project.status}</div>)}</div></section>
-          </> : null}
+        {page === 'Projetos' ? <><div className="flex items-center justify-between"><h1 className="text-xl font-semibold">Projetos</h1><Button onClick={() => { setEditingProject(undefined); setPrefilledLeadId(undefined); setProjectModalOpen(true); }}><Plus size={16} /> Novo projeto</Button></div><div className="lf-card grid gap-3 p-4 md:grid-cols-3"><input className="lf-input" placeholder="Buscar projeto/cliente" value={projectFilter.search} onChange={(e) => setProjectFilter((prev) => ({ ...prev, search: e.target.value }))} /><select className="lf-input" value={projectFilter.status} onChange={(e) => setProjectFilter((prev) => ({ ...prev, status: e.target.value }))}><option value="Todos">Todos status</option>{PROJECT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select><select className="lf-input" value={projectFilter.leadId} onChange={(e) => setProjectFilter((prev) => ({ ...prev, leadId: e.target.value }))}><option value="Todos">Todos leads</option>{leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.company}</option>)}</select></div><div className="grid gap-3">{filteredProjects.map((project) => { const lead = leads.find((item) => item.id === project.lead_id); return <div key={project.id} className="lf-card p-4"><div className="flex items-start justify-between"><div><p className="text-lg font-semibold">{project.nome_projeto}</p><p className="text-sm text-slate-600">{lead?.company ?? 'Lead removido'}</p></div><select className="lf-input max-w-48" value={project.status} onChange={async (e) => { await api.updateProjectStatus(project.id, e.target.value as ProjectStatus); await refresh(); }}>{PROJECT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div><p className="mt-2 text-sm text-slate-600">Total líquido: {project.total_liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => { setEditingProject(project); setProjectModalOpen(true); }}>Editar</Button><Button variant="secondary" onClick={() => setDeleteProject(project)}>Excluir</Button></div></div>; })}</div></> : null}
 
-          {page === 'Leads' ? <>
-            <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-xl font-semibold text-slate-900">Leads</h1><div className="flex gap-2"><input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { handleCsvFile(event.target.files?.[0]); event.currentTarget.value = ''; }} /><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><Upload size={16} /> Importar CSV</Button><Button onClick={() => { setEditingLead(undefined); setModalOpen(true); }}><Plus size={16} />Novo Lead</Button></div></div>
-            <FiltersBar search={filter.search} status={filter.status} interest={filter.interest} rating={filter.rating} sort={filter.sort} interests={interests} onChange={(next) => setFilter((prev) => ({ ...prev, ...next }))} />
-            <section className="grid gap-3">{filteredLeads.length === 0 ? <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead encontrado com os filtros atuais.</div> : filteredLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setEditingProject(undefined); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section>
-          </> : null}
+        {page === 'Colaboradores' ? <><div className="flex items-center justify-between"><h1 className="text-xl font-semibold">Colaboradores</h1><Button onClick={() => { setEditingCollaborator(null); setCollabPayload({ nome: '', observacoes: '' }); }}>Novo colaborador</Button></div><div className="grid gap-3">{collaborators.map((collab) => <div key={collab.id} className="lf-card p-4"><p className="font-semibold">{collab.nome}</p><p className="text-sm text-slate-600">{collab.observacoes || 'Sem observações'}</p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => { setEditingCollaborator(collab); setCollabPayload({ nome: collab.nome, observacoes: collab.observacoes }); }}>Editar</Button><Button variant="secondary" onClick={async () => { await api.deleteCollaborator(collab.id); await refresh(); }}>Excluir</Button></div></div>)}</div><div className="lf-card p-4"><p className="mb-2 text-sm font-semibold">{editingCollaborator ? 'Editar colaborador' : 'Novo colaborador'}</p><div className="grid gap-2 md:grid-cols-2"><input className="lf-input" placeholder="Nome" value={collabPayload.nome} onChange={(e) => setCollabPayload((p) => ({ ...p, nome: e.target.value }))} /><input className="lf-input" placeholder="Observações" value={collabPayload.observacoes ?? ''} onChange={(e) => setCollabPayload((p) => ({ ...p, observacoes: e.target.value }))} /></div><div className="mt-2"><Button onClick={async () => { if (!collabPayload.nome?.trim()) return; if (editingCollaborator) await api.updateCollaborator(editingCollaborator.id, collabPayload); else await api.createCollaborator(collabPayload); setEditingCollaborator(null); setCollabPayload({ nome: '', observacoes: '' }); await refresh(); }}>Salvar colaborador</Button></div></div></> : null}
 
-          {page === 'Carteira de Clientes' ? <>
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold text-slate-900">Carteira de Clientes</h1><p className="text-sm text-slate-500">Leads ganhos e convertidos para relacionamento contínuo.</p></div><Badge kind="status" value="Ganho" /></div>
-            {wonPendingFollowups.length > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{wonPendingFollowups.length} leads ganhos com follow-up pendente.</div> : null}
-            <div className="lf-card p-4"><label className="space-y-1 text-xs font-medium text-slate-600">Buscar lead ganho<input className="lf-input lf-focusable" value={wonSearch} onChange={(event) => setWonSearch(event.target.value)} placeholder="Digite nome da empresa ou contato..." /></label></div>
-            <section className="grid gap-3">{filteredWonLeads.length === 0 ? <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead ganho encontrado.</div> : filteredWonLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section>
-          </> : null}
-
-          {page === 'Leads Perdidos' ? <>
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold text-slate-900">Leads Perdidos</h1><p className="text-sm text-slate-500">Leads sem avanço no momento, para retomar contato futuramente.</p></div><Badge kind="status" value="Perdido" /></div>
-            {lostPendingFollowups.length > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{lostPendingFollowups.length} leads perdidos com follow-up pendente.</div> : null}
-            <section className="grid gap-3">{filteredLostLeads.length === 0 ? <div className="lf-card p-10 text-center text-sm text-slate-500">Nenhum lead perdido no momento.</div> : filteredLostLeads.map((lead) => <LeadCard key={lead.id} lead={lead} projects={projectsByLead[lead.id] ?? []} onEdit={(row) => { setEditingLead(row); setModalOpen(true); }} onDelete={(row) => setDeleteLead(row)} onUpdateStage={updateStage} onCreateProject={(row) => { setPrefilledLeadId(row.id); setProjectModalOpen(true); }} onUpdateProjectStatus={async (project, status) => { await api.updateProjectStatus(project.id, status); await refresh(); }} />)}</section>
-          </> : null}
-
-          {page === 'Projetos' ? <>
-            <div className="flex items-center justify-between"><h1 className="text-xl font-semibold text-slate-900">Projetos</h1><Button onClick={() => { setEditingProject(undefined); setPrefilledLeadId(undefined); setProjectModalOpen(true); }}><Plus size={16} /> Novo projeto</Button></div>
-            <div className="lf-card grid gap-3 p-4 md:grid-cols-3"><input className="lf-input" placeholder="Buscar projeto/cliente" value={projectFilter.search} onChange={(e) => setProjectFilter((prev) => ({ ...prev, search: e.target.value }))} /><select className="lf-input" value={projectFilter.status} onChange={(e) => setProjectFilter((prev) => ({ ...prev, status: e.target.value }))}><option value="Todos">Todos status</option>{PROJECT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select><select className="lf-input" value={projectFilter.leadId} onChange={(e) => setProjectFilter((prev) => ({ ...prev, leadId: e.target.value }))}><option value="Todos">Todos leads</option>{leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.company}</option>)}</select></div>
-            <div className="grid gap-3">{filteredProjects.map((project) => { const lead = leads.find((item) => item.id === project.lead_id); return <div key={project.id} className="lf-card p-4"><div className="flex items-start justify-between"><div><p className="text-lg font-semibold">{project.nome_projeto}</p><p className="text-sm text-slate-600">{lead?.company ?? 'Lead removido'}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{project.status}</span></div><p className="mt-2 text-sm text-slate-600">{project.descricao || 'Sem descrição.'}</p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => { setEditingProject(project); setProjectModalOpen(true); }}>Editar</Button><Button variant="secondary" onClick={() => setDeleteProject(project)}>Excluir</Button></div></div>; })}</div>
-          </> : null}
-
-          {page === 'Relatórios' ? <ReportsPanel leads={leads} /> : null}
-        </main>
-      </div>
-
-      {showFollowupToast && pendingFollowups.length > 0 ? <div className="fixed bottom-5 right-5 z-40 max-w-sm rounded-lg border border-amber-300 bg-white p-3 shadow-xl"><p className="text-sm font-semibold text-slate-900">Alerta de follow-up</p><p className="mt-1 text-sm text-slate-600">{pendingFollowups.length} lead(s) precisam de follow-up agora.</p><div className="mt-3 flex justify-end gap-2"><Button variant="secondary" className="h-8" onClick={() => setShowFollowupToast(false)}>Fechar</Button><Button className="h-8" onClick={() => { setPage('Leads'); setShowFollowupToast(false); }}>Ver leads</Button></div></div> : null}
-
-      <LeadModal open={modalOpen} lead={editingLead} onClose={() => setModalOpen(false)} onSave={saveLead} />
-      <ProjectModal open={projectModalOpen} leads={leads} leadId={prefilledLeadId} project={editingProject} onClose={() => setProjectModalOpen(false)} onSave={saveProject} />
-      <ConfirmDialog open={Boolean(deleteLead)} title="Excluir lead" description="Esta ação não pode ser desfeita." onCancel={() => setDeleteLead(null)} onConfirm={async () => { if (deleteLead) { await api.deleteLead(deleteLead.id); setDeleteLead(null); await refresh(); } }} />
-      <ConfirmDialog open={Boolean(deleteProject)} title="Excluir projeto" description="Esta ação não pode ser desfeita." onCancel={() => setDeleteProject(null)} onConfirm={async () => { if (deleteProject) { await api.deleteProject(deleteProject.id); setDeleteProject(null); await refresh(); } }} />
+        {page === 'Relatórios' ? <ReportsPanel leads={leads} /> : null}
+      </main>
     </div>
-  );
+    {showFollowupToast && pendingFollowups.length > 0 ? <div className="fixed bottom-5 right-5 z-40 max-w-sm rounded-lg border border-amber-300 bg-white p-3 shadow-xl"><p className="text-sm font-semibold text-slate-900">Alerta de follow-up</p><p className="mt-1 text-sm text-slate-600">{pendingFollowups.length} lead(s) precisam de follow-up agora.</p><div className="mt-3 flex justify-end gap-2"><Button variant="secondary" className="h-8" onClick={() => setShowFollowupToast(false)}>Fechar</Button><Button className="h-8" onClick={() => { setPage('Leads'); setShowFollowupToast(false); }}>Ver leads</Button></div></div> : null}
+
+    <LeadModal open={modalOpen} lead={editingLead} onClose={() => setModalOpen(false)} onSave={saveLead} />
+    <ProjectModal open={projectModalOpen} leads={leads} collaborators={collaborators} leadId={prefilledLeadId} project={editingProject} onClose={() => setProjectModalOpen(false)} onSave={saveProject} />
+    <ConfirmDialog open={Boolean(deleteLead)} title="Excluir lead" description="Esta ação não pode ser desfeita." onCancel={() => setDeleteLead(null)} onConfirm={async () => { if (deleteLead) { await api.deleteLead(deleteLead.id); setDeleteLead(null); await refresh(); } }} />
+    <ConfirmDialog open={Boolean(deleteProject)} title="Excluir projeto" description="Esta ação não pode ser desfeita." onCancel={() => setDeleteProject(null)} onConfirm={async () => { if (deleteProject) { await api.deleteProject(deleteProject.id); setDeleteProject(null); await refresh(); } }} />
+  </div>;
 }
