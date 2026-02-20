@@ -39,6 +39,7 @@ import { ReportsPanel } from "./components/ReportsPanel";
 import { StatCard } from "./components/StatCard";
 import { Button } from "./components/ui/Button";
 import { formatCurrencyBRL } from "./lib/formatters";
+import { calcCommissionByCollaborator } from "./lib/projectFinance";
 import {
   interestChartPalette,
   projectStatusColorMap,
@@ -56,13 +57,17 @@ import {
   type ProjectPayload,
   type ProjectStatus,
   type Stage,
+  type Customer,
+  type CustomerPayload,
+  type Contact,
+  type ContactPayload,
 } from "./types";
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 type Page =
   | "Dashboard"
   | "Leads"
-  | "Carteira de Clientes"
+  | "Clientes"
   | "Leads Perdidos"
   | "Projetos"
   | "Colaboradores"
@@ -71,7 +76,7 @@ type Page =
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "Leads", icon: Users },
-  { label: "Carteira de Clientes", icon: BriefcaseBusiness },
+  { label: "Clientes", icon: BriefcaseBusiness },
   { label: "Leads Perdidos", icon: UserRoundX },
   { label: "Projetos", icon: FolderKanban },
   { label: "Colaboradores", icon: UsersRound },
@@ -126,22 +131,35 @@ export function App() {
     nome: "",
     observacoes: "",
   });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [contactsByCustomer, setContactsByCustomer] = useState<Record<number, Contact[]>>({});
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerPayload, setCustomerPayload] = useState<CustomerPayload>({ name: "", notes: "" });
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" });
+  const [commissionFilter, setCommissionFilter] = useState<"Aprovado+Faturado" | "Aprovado" | "Faturado">("Aprovado+Faturado");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const [leadRows, dashboardData, projectRows, collabRows] =
+      const [leadRows, dashboardData, projectRows, collabRows, customerRows] =
         await Promise.all([
           api.listLeads(),
           api.getDashboard(),
           api.listProjects(),
           api.listCollaborators(),
+          api.listCustomers(),
         ]);
+      const contactRows = await Promise.all(
+        customerRows.map(async (customer) => [customer.id, await api.listContactsByCustomer(customer.id)] as const),
+      );
       setLeads(leadRows);
       setDashboard(dashboardData);
       setProjects(projectRows);
       setCollaborators(collabRows);
+      setCustomers(customerRows);
+      setContactsByCustomer(Object.fromEntries(contactRows));
     } finally {
       setLoading(false);
     }
@@ -326,16 +344,39 @@ export function App() {
   );
   const projectFinanceChartData = [
     {
-      label: "Aprovado",
+      label: "A receber (Aprovado)",
       value: dashboard?.approved_total ?? 0,
       color: projectStatusColorMap.Aprovado,
     },
     {
-      label: "Faturado",
+      label: "Já recebido (Faturado)",
       value: dashboard?.invoiced_total ?? 0,
       color: projectStatusColorMap.Faturado,
     },
   ];
+  const commissionByConsultantData = useMemo(() => {
+    const allowedStatuses =
+      commissionFilter === "Aprovado"
+        ? ["Aprovado"]
+        : commissionFilter === "Faturado"
+          ? ["Faturado"]
+          : ["Aprovado", "Faturado"];
+    const totals = new Map<number, { name: string; total: number }>();
+    projects
+      .filter((project) => allowedStatuses.includes(project.status))
+      .forEach((project) => {
+        calcCommissionByCollaborator(project, collaborators).forEach((item) => {
+          const current = totals.get(item.collaboratorId) ?? {
+            name: item.collaboratorName,
+            total: 0,
+          };
+          current.total += item.total;
+          totals.set(item.collaboratorId, current);
+        });
+      });
+
+    return Array.from(totals.values()).sort((a, b) => b.total - a.total);
+  }, [projects, collaborators, commissionFilter]);
   const handleCsvFile = async (file?: File | null) => {
     if (!file) return;
     await api.importCsv(await file.text());
@@ -488,7 +529,7 @@ export function App() {
                         Sem dados.
                       </div>
                     ) : (
-                      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(180px,220px)] gap-3">
+                      <div className="grid h-full grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(200px,240px)]">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
@@ -507,7 +548,7 @@ export function App() {
                             />
                           </PieChart>
                         </ResponsiveContainer>
-                        <div className="space-y-2 overflow-y-auto pr-1 text-sm">
+                        <div className="space-y-2 overflow-y-auto pr-1 text-sm md:max-h-72">
                           {topInterestsData.map((item, index) => (
                             <div
                               key={item.name}
@@ -545,13 +586,16 @@ export function App() {
                         />
                         <XAxis
                           dataKey="stage"
-                          angle={-15}
+                          angle={-28}
                           textAnchor="end"
-                          height={80}
+                          height={96}
                           interval={0}
                         />
                         <YAxis allowDecimals={false} />
-                        <Tooltip formatter={(value) => [value, "Projetos"]} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 10 }}
+                          formatter={(value) => [value, "Projetos"]}
+                        />
                         <Bar dataKey="total" radius={[8, 8, 0, 0]}>
                           {projectsStatusChartData.map((entry) => (
                             <Cell key={entry.stage} fill={entry.color} />
@@ -604,6 +648,39 @@ export function App() {
                             }
                             className="fill-slate-700 text-xs"
                           />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {projectFinanceChartData.map((item) => (
+                      <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <p className="text-slate-600">{item.label}</p>
+                        <p className="font-semibold text-slate-900">{formatCurrencyBRL(item.value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+              <section>
+                <div className="lf-card p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="lf-section-title">Comissões por consultor</h2>
+                    <select className="lf-input max-w-56" value={commissionFilter} onChange={(e) => setCommissionFilter(e.target.value as any)}>
+                      <option value="Aprovado+Faturado">Aprovado + Faturado</option>
+                      <option value="Aprovado">Somente Aprovado</option>
+                      <option value="Faturado">Somente Faturado</option>
+                    </select>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={commissionByConsultantData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                        <XAxis dataKey="name" interval={0} angle={-20} textAnchor="end" height={88} />
+                        <YAxis tickFormatter={(value) => formatCurrencyBRL(Number(value))} width={120} />
+                        <Tooltip formatter={(value) => [formatCurrencyBRL(Number(value)), "Comissão"]} />
+                        <Bar dataKey="total" fill="#2563EB" radius={[8, 8, 0, 0]}>
+                          <LabelList dataKey="total" position="top" formatter={(value: number) => formatCurrencyBRL(value)} className="fill-slate-700 text-xs" />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -681,38 +758,78 @@ export function App() {
             </>
           ) : null}
 
-          {page === "Carteira de Clientes" ? (
+          {page === "Clientes" ? (
             <>
-              <h1 className="text-xl font-semibold">Leads Ganhos</h1>
-              {wonPendingFollowups.length > 0 ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  {wonPendingFollowups.length} leads ganhos com follow-up
-                  pendente.
-                </div>
-              ) : null}
-              <section className="grid gap-3">
-                {filteredWonLeads.map((lead) => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    projects={projectsByLead[lead.id] ?? []}
-                    onEdit={(row) => {
-                      setEditingLead(row);
-                      setModalOpen(true);
-                    }}
-                    onDelete={(row) => setDeleteLead(row)}
-                    onUpdateStage={updateStage}
-                    onCreateProject={(row) => {
-                      setPrefilledLeadId(row.id);
-                      setProjectModalOpen(true);
-                    }}
-                    onUpdateProjectStatus={async (project, status) => {
-                      await api.updateProjectStatus(project.id, status);
-                      await refresh();
-                    }}
-                  />
-                ))}
-              </section>
+              <h1 className="text-xl font-semibold">Clientes</h1>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <section className="space-y-3">
+                  {customers.map((customer) => (
+                    <div key={customer.id} className="lf-card p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">{customer.name}</p>
+                          <p className="text-sm text-slate-600">{customer.notes || "Sem observações"}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="secondary" onClick={() => { setEditingCustomer(customer); setCustomerPayload({ name: customer.name, notes: customer.notes }); }}>
+                            Editar
+                          </Button>
+                          <Button variant="secondary" onClick={async () => { await api.deleteCustomer(customer.id); await refresh(); }}>
+                            Excluir
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {(contactsByCustomer[customer.id] ?? []).map((contact) => (
+                          <div key={contact.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium">{contact.name}</p>
+                              <div className="flex gap-2">
+                                <button className="text-blue-600" onClick={() => { setEditingContact(contact); setContactPayload({ customer_id: contact.customer_id, name: contact.name, email: contact.email, phone: contact.phone, job_title: contact.job_title, notes: contact.notes }); }}>Editar</button>
+                                <button className="text-rose-600" onClick={async () => { await api.deleteContact(contact.id); await refresh(); }}>Excluir</button>
+                              </div>
+                            </div>
+                            <p className="text-slate-600">{[contact.job_title, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sem dados adicionais"}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3">
+                        <Button variant="secondary" onClick={() => { setEditingContact(null); setContactPayload({ customer_id: customer.id, name: "", email: "", phone: "", job_title: "", notes: "" }); }}>
+                          Novo contato
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+                <aside className="space-y-3">
+                  <div className="lf-card p-4">
+                    <p className="mb-2 text-sm font-semibold">{editingCustomer ? "Editar cliente" : "Novo cliente"}</p>
+                    <div className="space-y-2">
+                      <input className="lf-input" placeholder="Nome" value={customerPayload.name} onChange={(e) => setCustomerPayload((p) => ({ ...p, name: e.target.value }))} />
+                      <textarea className="lf-input min-h-20" placeholder="Observações" value={customerPayload.notes ?? ""} onChange={(e) => setCustomerPayload((p) => ({ ...p, notes: e.target.value }))} />
+                      <Button onClick={async () => { if (!customerPayload.name.trim()) return; if (editingCustomer) await api.updateCustomer(editingCustomer.id, customerPayload); else await api.createCustomer(customerPayload); setEditingCustomer(null); setCustomerPayload({ name: "", notes: "" }); await refresh(); }}>
+                        Salvar cliente
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="lf-card p-4">
+                    <p className="mb-2 text-sm font-semibold">{editingContact ? "Editar contato" : "Contato"}</p>
+                    <div className="space-y-2">
+                      <select className="lf-input" value={contactPayload.customer_id} onChange={(e) => setContactPayload((p) => ({ ...p, customer_id: Number(e.target.value) }))}>
+                        <option value={0}>Selecione o cliente</option>
+                        {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                      </select>
+                      <input className="lf-input" placeholder="Nome" value={contactPayload.name} onChange={(e) => setContactPayload((p) => ({ ...p, name: e.target.value }))} />
+                      <input className="lf-input" placeholder="E-mail" value={contactPayload.email ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, email: e.target.value }))} />
+                      <input className="lf-input" placeholder="Telefone" value={contactPayload.phone ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, phone: e.target.value }))} />
+                      <input className="lf-input" placeholder="Cargo" value={contactPayload.job_title ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, job_title: e.target.value }))} />
+                      <Button onClick={async () => { if (!contactPayload.customer_id || !contactPayload.name.trim()) return; if (editingContact) await api.updateContact(editingContact.id, contactPayload); else await api.createContact(contactPayload); setEditingContact(null); setContactPayload({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" }); await refresh(); }}>
+                        Salvar contato
+                      </Button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
             </>
           ) : null}
 
@@ -848,10 +965,7 @@ export function App() {
                       </div>
                       <p className="mt-2 text-sm text-slate-600">
                         Total líquido:{" "}
-                        {project.total_liquido.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
+                        {formatCurrencyBRL(project.total_liquido)}
                       </p>
                       <div className="mt-3 flex gap-2">
                         <Button
