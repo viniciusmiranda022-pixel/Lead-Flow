@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use chrono::Local;
-use csv::ReaderBuilder;
+use chrono::{Local, NaiveDateTime};
+use csv::{ReaderBuilder, Trim};
 use dirs::{config_dir, data_dir};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -283,9 +283,18 @@ fn parse_ids(raw: Option<String>) -> Vec<i64> {
 
 fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String> {
     let now = now_iso();
+    insert_lead_with_timestamps(conn, payload, &now, &now)
+}
+
+fn insert_lead_with_timestamps(
+    conn: &Connection,
+    payload: &LeadPayload,
+    created_at: &str,
+    updated_at: &str,
+) -> Result<Lead, String> {
     let stage = normalize_stage(&payload.stage);
     let last_contacted = if stage == "Contatado" {
-        Some(now.clone())
+        Some(updated_at.to_string())
     } else {
         None
     };
@@ -293,12 +302,47 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
     conn.execute(
         "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, created_at, updated_at, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
     let id = conn.last_insert_rowid();
     get_lead(conn, id)
+}
+
+fn upsert_lead_by_email(
+    conn: &Connection,
+    payload: &LeadPayload,
+    created_at: &str,
+    updated_at: &str,
+) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("SELECT id, created_at FROM leads WHERE lower(email) = lower(?1) LIMIT 1")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query(params![payload.email.trim()])
+        .map_err(|e| e.to_string())?;
+
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: i64 = row.get(0).map_err(|e| e.to_string())?;
+        let existing_created_at: String = row.get(1).map_err(|e| e.to_string())?;
+        let stage = normalize_stage(&payload.stage);
+        let merged_created_at = if created_at.trim().is_empty() {
+            existing_created_at
+        } else {
+            created_at.to_string()
+        };
+
+        conn.execute(
+            "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, interest=?6, stage=?7, updated_at=?8, created_at=?9 WHERE id=?10",
+            params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.interest.trim(), stage, updated_at, merged_created_at, id],
+        )
+        .map_err(|e| e.to_string())?;
+
+        return Ok(());
+    }
+
+    insert_lead_with_timestamps(conn, payload, created_at, updated_at).map(|_| ())
 }
 
 fn normalize_csv_header(s: &str) -> String {
@@ -332,7 +376,7 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
         }
     }
 
-    let aliases: [(&str, &[&str]); 5] = [
+    let aliases: [(&str, &[&str]); 9] = [
         (
             "company",
             &[
@@ -354,12 +398,19 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
                 "nome",
             ],
         ),
+        ("job_title", &["cargo", "jobtitle", "funcao"]),
         ("email", &["email", "e-mail", "mail"]),
         (
             "phone",
             &["telefone", "phone", "celular", "whatsapp", "tel", "fone"],
         ),
+        ("interest", &["interesse", "interest"]),
         ("stage", &["status", "stage", "etapa", "fase"]),
+        ("created_at", &["criadoem", "createdat", "datacriacao", "criacao"]),
+        (
+            "updated_at",
+            &["atualizadoem", "updatedat", "dataatualizacao", "atualizacao"],
+        ),
     ];
 
     let mut out: HashMap<String, usize> = HashMap::new();
@@ -386,16 +437,49 @@ fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key:
 }
 
 fn csv_delimiter(csv_content: &str) -> u8 {
-    let first_line = csv_content.lines().next().unwrap_or("");
+    let mut comma_score = 0;
+    let mut semicolon_score = 0;
 
-    let commas = first_line.matches(',').count();
-    let semicolons = first_line.matches(';').count();
+    for line in csv_content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .take(15)
+    {
+        comma_score += line.matches(',').count();
+        semicolon_score += line.matches(';').count();
+    }
 
-    if semicolons > commas {
+    if semicolon_score > comma_score {
         b';'
     } else {
         b','
     }
+}
+
+fn parse_csv_datetime(raw: &str) -> Result<String, String> {
+    let cleaned = raw.trim().trim_matches('"');
+    if cleaned.is_empty() {
+        return Ok(now_iso());
+    }
+
+    let normalized = cleaned.replace(',', "");
+    let normalized = normalized.trim();
+
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(normalized, "%d/%m/%Y %H:%M:%S") {
+        return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
+    }
+
+    if let Ok(parsed) = NaiveDateTime::parse_from_str(normalized, "%d/%m/%Y %H:%M") {
+        return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
+    }
+
+    if let Ok(date) = chrono::NaiveDate::parse_from_str(normalized, "%d/%m/%Y") {
+        if let Some(parsed) = date.and_hms_opt(0, 0, 0) {
+            return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
+        }
+    }
+
+    Err(format!("data inválida: {cleaned}"))
 }
 
 fn app_db_path() -> Result<PathBuf, String> {
@@ -672,6 +756,7 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
 
 #[tauri::command]
 fn import_csv(csv_content: String) -> Result<ImportResult, String> {
+    let csv_content = csv_content.trim_start_matches('\u{feff}').to_string();
     if csv_content.trim().is_empty() {
         return Err("CSV vazio".into());
     }
@@ -679,6 +764,8 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
     let delimiter = csv_delimiter(&csv_content);
     let mut reader = ReaderBuilder::new()
         .delimiter(delimiter)
+        .trim(Trim::All)
+        .flexible(true)
         .has_headers(true)
         .from_reader(csv_content.as_bytes());
 
@@ -706,13 +793,49 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             }
         };
 
+        if record.iter().all(|value| value.trim().is_empty()) {
+            skipped += 1;
+            continue;
+        }
+
+        let created_at_raw = read_csv_field(&record, &map, "created_at");
+        let updated_at_raw = read_csv_field(&record, &map, "updated_at");
+
+        let created_at = match parse_csv_datetime(&created_at_raw) {
+            Ok(value) => value,
+            Err(err) => {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_number,
+                    message: format!("coluna Criado em inválida: {}", err),
+                    company: read_csv_field(&record, &map, "company"),
+                    email: read_csv_field(&record, &map, "email"),
+                });
+                continue;
+            }
+        };
+
+        let updated_at = match parse_csv_datetime(&updated_at_raw) {
+            Ok(value) => value,
+            Err(err) => {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_number,
+                    message: format!("coluna Atualizado em inválida: {}", err),
+                    company: read_csv_field(&record, &map, "company"),
+                    email: read_csv_field(&record, &map, "email"),
+                });
+                continue;
+            }
+        };
+
         let payload = LeadPayload {
             company: read_csv_field(&record, &map, "company"),
             contact_name: read_csv_field(&record, &map, "contact_name"),
+            job_title: read_csv_field(&record, &map, "job_title"),
             email: read_csv_field(&record, &map, "email"),
             phone: read_csv_field(&record, &map, "phone"),
             stage: read_csv_field(&record, &map, "stage"),
-            job_title: String::new(),
             linkedin: String::new(),
             location: String::new(),
             country: String::new(),
@@ -720,7 +843,7 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             city: String::new(),
             company_size: String::new(),
             industry: String::new(),
-            interest: String::new(),
+            interest: read_csv_field(&record, &map, "interest"),
             notes: String::new(),
             rating: None,
             next_followup_at: None,
@@ -737,7 +860,7 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             continue;
         }
 
-        if let Err(err) = insert_lead(&conn, &payload) {
+        if let Err(err) = upsert_lead_by_email(&conn, &payload, &created_at, &updated_at) {
             skipped += 1;
             errors.push(ImportError {
                 row: row_number,
