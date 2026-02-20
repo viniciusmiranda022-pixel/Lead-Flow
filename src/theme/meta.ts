@@ -91,13 +91,13 @@ export const interestChartPalette = [
 ];
 
 export const projectStatusColorMap: Record<ProjectStatus, string> = {
-  Discovery: "#2563EB",
-  "Em negociação": "#F59E0B",
-  Planejado: "#6366F1",
-  "Pré-Venda": "#14B8A6",
-  "Aguardando Cliente": "#94A3B8",
-  Aprovado: "#10B981",
-  Faturado: "#059669",
+  DISCOVERY: "#2563EB",
+  NEGOCIACAO: "#F59E0B",
+  PLANEJADO: "#6366F1",
+  PRE_VENDA: "#14B8A6",
+  AGUARDANDO_CLIENTE: "#94A3B8",
+  APROVADO: "#10B981",
+  FATURADO: "#059669",
 };
 
 export type InterestMeta = {
