@@ -1,6 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Collaborator, CollaboratorPayload, Contact, ContactPayload, Customer, CustomerPayload, DashboardData, ImportResult, Lead, LeadPayload, Project, ProjectPayload, ProjectStatus, Stage } from './types';
 
+type RestoreDatabaseResult = {
+  preRestoreBackupPath: string;
+  restartRequired: boolean;
+};
+
 export const api = {
   getDashboard: () => invoke<DashboardData>('get_dashboard_data'),
   listLeads: () => invoke<Lead[]>('list_leads'),
@@ -27,5 +32,7 @@ export const api = {
   updateContact: (id: number, payload: ContactPayload) => invoke<Contact>('update_contact', { id, payload }),
   deleteContact: (id: number) => invoke<void>('delete_contact', { id }),
   importLegacyDb: () => invoke<boolean>('import_legacy_db'),
-  importCsv: (csvContent: string) => invoke<ImportResult>('import_csv', { csvContent })
+  importCsv: (csvContent: string) => invoke<ImportResult>('import_csv', { csvContent }),
+  backupDatabase: (destinationPath: string) => invoke<string>('backup_database', { destinationPath }),
+  restoreDatabase: (backupPath: string) => invoke<RestoreDatabaseResult>('restore_database', { backupPath })
 };
