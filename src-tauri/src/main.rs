@@ -24,6 +24,7 @@ const PROJECT_STATUSES: [&str; 7] = [
     "Aprovado",
     "Faturado",
 ];
+const PROJECT_ATTENTION_STATUSES: [&str; 3] = ["Em negociação", "Aguardando Cliente", "Pré-Venda"];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Lead {
@@ -48,8 +49,6 @@ struct Lead {
     updated_at: String,
     last_contacted_at: Option<String>,
     next_followup_at: Option<String>,
-    customer_id: Option<i64>,
-    contact_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,8 +70,6 @@ struct LeadPayload {
     notes: String,
     rating: Option<i64>,
     next_followup_at: Option<String>,
-    customer_id: Option<i64>,
-    contact_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -132,45 +129,6 @@ struct ProjectPayload {
     implantacao_ids: Option<Vec<i64>>,
     indicacao_ids: Option<Vec<i64>>,
     fixo_ids: Option<Vec<i64>>,
-}
-
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Customer {
-    id: i64,
-    name: String,
-    notes: String,
-    created_at: String,
-    updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct CustomerPayload {
-    name: String,
-    notes: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Contact {
-    id: i64,
-    customer_id: i64,
-    name: String,
-    email: String,
-    phone: String,
-    job_title: String,
-    notes: String,
-    created_at: String,
-    updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ContactPayload {
-    customer_id: i64,
-    name: String,
-    email: Option<String>,
-    phone: Option<String>,
-    job_title: Option<String>,
-    notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -333,9 +291,9 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
     };
 
     conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at, customer_id, contact_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), payload.customer_id, payload.contact_id],
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
@@ -517,42 +475,11 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS customers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            notes TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS contacts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            email TEXT,
-            phone TEXT,
-            job_title TEXT,
-            notes TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-
     ensure_column(conn, "leads", "next_followup_at", "TEXT")?;
     ensure_column(conn, "leads", "country", "TEXT")?;
     ensure_column(conn, "leads", "state", "TEXT")?;
     ensure_column(conn, "leads", "city", "TEXT")?;
     ensure_column(conn, "leads", "rating", "INTEGER")?;
-    ensure_column(conn, "leads", "customer_id", "INTEGER")?;
-    ensure_column(conn, "leads", "contact_id", "INTEGER")?;
     ensure_column(conn, "projects", "valor_bruto_negociado", "REAL DEFAULT 0")?;
     ensure_column(conn, "projects", "valor_bruto_licencas", "REAL DEFAULT 0")?;
     ensure_column(
@@ -584,8 +511,6 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     ensure_column(conn, "projects", "implantacao_ids", "TEXT DEFAULT '[]'")?;
     ensure_column(conn, "projects", "indicacao_ids", "TEXT DEFAULT '[]'")?;
     ensure_column(conn, "projects", "fixo_ids", "TEXT DEFAULT '[]'")?;
-
-    migrate_leads_to_customers_contacts(conn)?;
 
     Ok(())
 }
@@ -620,87 +545,6 @@ fn ensure_column(
     Ok(())
 }
 
-
-fn normalize_company_key(value: &str) -> String {
-    value.trim().to_lowercase()
-}
-
-fn get_or_create_customer(conn: &Connection, name: &str) -> Result<i64, String> {
-    let normalized = normalize_company_key(name);
-    if let Ok(id) = conn.query_row(
-        "SELECT id FROM customers WHERE lower(trim(name)) = ?1 LIMIT 1",
-        [normalized.clone()],
-        |row| row.get(0),
-    ) {
-        return Ok(id);
-    }
-
-    let now = now_iso();
-    conn.execute(
-        "INSERT INTO customers (name, notes, created_at, updated_at) VALUES (?1, '', ?2, ?3)",
-        params![name.trim(), now, now],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(conn.last_insert_rowid())
-}
-
-fn migrate_leads_to_customers_contacts(conn: &Connection) -> Result<(), String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, company, contact_name, email, phone, job_title, notes, customer_id, contact_id FROM leads",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, Option<String>>(1)?.unwrap_or_default(),
-                row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-                row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-                row.get::<_, Option<String>>(4)?.unwrap_or_default(),
-                row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-                row.get::<_, Option<String>>(6)?.unwrap_or_default(),
-                row.get::<_, Option<i64>>(7)?,
-                row.get::<_, Option<i64>>(8)?,
-            ))
-        })
-        .map_err(|e| e.to_string())?;
-
-    for row in rows {
-        let (lead_id, company, contact_name, email, phone, job_title, notes, customer_id, contact_id) =
-            row.map_err(|e| e.to_string())?;
-
-        let customer = if let Some(id) = customer_id {
-            id
-        } else if company.trim().is_empty() {
-            continue;
-        } else {
-            get_or_create_customer(conn, &company)?
-        };
-
-        let contact = if let Some(id) = contact_id {
-            id
-        } else {
-            let now = now_iso();
-            conn.execute(
-                "INSERT INTO contacts (customer_id, name, email, phone, job_title, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![customer, contact_name.trim(), email.trim(), phone.trim(), job_title.trim(), notes.trim(), now, now],
-            )
-            .map_err(|e| e.to_string())?;
-            conn.last_insert_rowid()
-        };
-
-        conn.execute(
-            "UPDATE leads SET customer_id = ?1, contact_id = ?2 WHERE id = ?3",
-            params![customer, contact, lead_id],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
 fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
     let text = |index| -> rusqlite::Result<String> {
         Ok(row.get::<_, Option<String>>(index)?.unwrap_or_default())
@@ -728,8 +572,6 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         updated_at: text(18)?,
         last_contacted_at: row.get(19)?,
         next_followup_at: row.get(20)?,
-        customer_id: row.get(21)?,
-        contact_id: row.get(22)?,
     })
 }
 
@@ -779,35 +621,11 @@ fn row_to_collaborator(row: &rusqlite::Row) -> rusqlite::Result<Collaborator> {
         updated_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
     })
 }
-fn row_to_customer(row: &rusqlite::Row) -> rusqlite::Result<Customer> {
-    Ok(Customer {
-        id: row.get(0)?,
-        name: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
-        notes: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-        created_at: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-        updated_at: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
-    })
-}
-
-fn row_to_contact(row: &rusqlite::Row) -> rusqlite::Result<Contact> {
-    Ok(Contact {
-        id: row.get(0)?,
-        customer_id: row.get(1)?,
-        name: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-        email: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-        phone: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
-        job_title: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-        notes: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
-        created_at: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
-        updated_at: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
-    })
-}
-
 
 #[tauri::command]
 fn list_leads() -> Result<Vec<Lead>, String> {
     let conn = open_db()?;
-    let mut stmt = conn.prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at, customer_id, contact_id FROM leads ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_lead)
         .map_err(|e| e.to_string())?
@@ -818,7 +636,7 @@ fn list_leads() -> Result<Vec<Lead>, String> {
 
 fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
     conn.query_row(
-        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at, customer_id, contact_id FROM leads WHERE id = ?",
+        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
         [id],
         row_to_lead,
     )
@@ -845,8 +663,8 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     }
 
     conn.execute(
-        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, rating=?16, updated_at=?17, last_contacted_at=?18, next_followup_at=?19, customer_id=?20, contact_id=?21 WHERE id=?22",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), payload.customer_id, payload.contact_id, id],
+        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, rating=?16, updated_at=?17, last_contacted_at=?18, next_followup_at=?19 WHERE id=?20",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -906,8 +724,6 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             notes: String::new(),
             rating: None,
             next_followup_at: None,
-            customer_id: None,
-            contact_id: None,
         };
 
         if let Err(err) = validate_payload(&payload) {
@@ -1086,11 +902,23 @@ fn list_collaborators() -> Result<Vec<Collaborator>, String> {
             "SELECT id, nome, observacoes, created_at, updated_at FROM collaborators ORDER BY nome",
         )
         .map_err(|e| e.to_string())?;
+ codex/expand-follow-up-alerts-and-project-module-i9kui9
+
+    let rows = stmt
+        .query_map([], row_to_collaborator)
+        .map_err(|e| e.to_string())?;
+
+    let collaborators = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(collaborators)
 
     stmt.query_map([], row_to_collaborator)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+ main
 }
 
 #[tauri::command]
@@ -1146,127 +974,6 @@ fn delete_collaborator(id: i64) -> Result<(), String> {
     Ok(())
 }
 
-
-#[tauri::command]
-fn list_customers() -> Result<Vec<Customer>, String> {
-    let conn = open_db()?;
-    let mut stmt = conn
-        .prepare("SELECT id, name, notes, created_at, updated_at FROM customers ORDER BY name")
-        .map_err(|e| e.to_string())?;
-    stmt.query_map([], row_to_customer)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn create_customer(payload: CustomerPayload) -> Result<Customer, String> {
-    if payload.name.trim().is_empty() {
-        return Err("Nome do cliente é obrigatório".into());
-    }
-    let conn = open_db()?;
-    let now = now_iso();
-    conn.execute(
-        "INSERT INTO customers (name, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-        params![payload.name.trim(), payload.notes.as_deref().unwrap_or(""), now, now],
-    )
-    .map_err(|e| e.to_string())?;
-    let id = conn.last_insert_rowid();
-    conn.query_row(
-        "SELECT id, name, notes, created_at, updated_at FROM customers WHERE id = ?",
-        [id],
-        row_to_customer,
-    )
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn update_customer(id: i64, payload: CustomerPayload) -> Result<Customer, String> {
-    if payload.name.trim().is_empty() {
-        return Err("Nome do cliente é obrigatório".into());
-    }
-    let conn = open_db()?;
-    conn.execute(
-        "UPDATE customers SET name = ?1, notes = ?2, updated_at = ?3 WHERE id = ?4",
-        params![payload.name.trim(), payload.notes.as_deref().unwrap_or(""), now_iso(), id],
-    )
-    .map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT id, name, notes, created_at, updated_at FROM customers WHERE id = ?",
-        [id],
-        row_to_customer,
-    )
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn delete_customer(id: i64) -> Result<(), String> {
-    let conn = open_db()?;
-    conn.execute("DELETE FROM customers WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-fn list_contacts_by_customer(customer_id: i64) -> Result<Vec<Contact>, String> {
-    let conn = open_db()?;
-    let mut stmt = conn
-        .prepare("SELECT id, customer_id, name, email, phone, job_title, notes, created_at, updated_at FROM contacts WHERE customer_id = ? ORDER BY name")
-        .map_err(|e| e.to_string())?;
-    stmt.query_map([customer_id], row_to_contact)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn create_contact(payload: ContactPayload) -> Result<Contact, String> {
-    if payload.customer_id <= 0 || payload.name.trim().is_empty() {
-        return Err("Cliente e nome do contato são obrigatórios".into());
-    }
-    let conn = open_db()?;
-    let now = now_iso();
-    conn.execute(
-        "INSERT INTO contacts (customer_id, name, email, phone, job_title, notes, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![payload.customer_id, payload.name.trim(), payload.email.as_deref().unwrap_or(""), payload.phone.as_deref().unwrap_or(""), payload.job_title.as_deref().unwrap_or(""), payload.notes.as_deref().unwrap_or(""), now, now],
-    )
-    .map_err(|e| e.to_string())?;
-    let id = conn.last_insert_rowid();
-    conn.query_row(
-        "SELECT id, customer_id, name, email, phone, job_title, notes, created_at, updated_at FROM contacts WHERE id = ?",
-        [id],
-        row_to_contact,
-    )
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn update_contact(id: i64, payload: ContactPayload) -> Result<Contact, String> {
-    if payload.customer_id <= 0 || payload.name.trim().is_empty() {
-        return Err("Cliente e nome do contato são obrigatórios".into());
-    }
-    let conn = open_db()?;
-    conn.execute(
-        "UPDATE contacts SET customer_id = ?1, name = ?2, email = ?3, phone = ?4, job_title = ?5, notes = ?6, updated_at = ?7 WHERE id = ?8",
-        params![payload.customer_id, payload.name.trim(), payload.email.as_deref().unwrap_or(""), payload.phone.as_deref().unwrap_or(""), payload.job_title.as_deref().unwrap_or(""), payload.notes.as_deref().unwrap_or(""), now_iso(), id],
-    )
-    .map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT id, customer_id, name, email, phone, job_title, notes, created_at, updated_at FROM contacts WHERE id = ?",
-        [id],
-        row_to_contact,
-    )
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn delete_contact(id: i64) -> Result<(), String> {
-    let conn = open_db()?;
-    conn.execute("DELETE FROM contacts WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 #[tauri::command]
 fn get_dashboard_data() -> Result<DashboardData, String> {
     let conn = open_db()?;
@@ -1303,7 +1010,7 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut latest_stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at, customer_id, contact_id FROM leads ORDER BY updated_at DESC LIMIT 10")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
         .map_err(|e| e.to_string())?;
     let latest = latest_stmt
         .query_map([], row_to_lead)
@@ -1396,14 +1103,6 @@ fn main() {
             create_collaborator,
             update_collaborator,
             delete_collaborator,
-            list_customers,
-            create_customer,
-            update_customer,
-            delete_customer,
-            list_contacts_by_customer,
-            create_contact,
-            update_contact,
-            delete_contact,
             get_dashboard_data,
             import_legacy_db,
             import_csv

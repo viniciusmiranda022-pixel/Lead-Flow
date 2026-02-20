@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Collaborator, CollaboratorPayload, Contact, ContactPayload, Customer, CustomerPayload, DashboardData, ImportResult, Lead, LeadPayload, Project, ProjectPayload, ProjectStatus, Stage } from './types';
+import type { Collaborator, CollaboratorPayload, DashboardData, ImportResult, Lead, LeadPayload, Project, ProjectPayload, ProjectStatus, Stage } from './types';
 
 export const api = {
   getDashboard: () => invoke<DashboardData>('get_dashboard_data'),
@@ -18,14 +18,6 @@ export const api = {
   createCollaborator: (payload: CollaboratorPayload) => invoke<Collaborator>('create_collaborator', { payload }),
   updateCollaborator: (id: number, payload: CollaboratorPayload) => invoke<Collaborator>('update_collaborator', { id, payload }),
   deleteCollaborator: (id: number) => invoke<void>('delete_collaborator', { id }),
-  listCustomers: () => invoke<Customer[]>('list_customers'),
-  createCustomer: (payload: CustomerPayload) => invoke<Customer>('create_customer', { payload }),
-  updateCustomer: (id: number, payload: CustomerPayload) => invoke<Customer>('update_customer', { id, payload }),
-  deleteCustomer: (id: number) => invoke<void>('delete_customer', { id }),
-  listContactsByCustomer: (customerId: number) => invoke<Contact[]>('list_contacts_by_customer', { customerId }),
-  createContact: (payload: ContactPayload) => invoke<Contact>('create_contact', { payload }),
-  updateContact: (id: number, payload: ContactPayload) => invoke<Contact>('update_contact', { id, payload }),
-  deleteContact: (id: number) => invoke<void>('delete_contact', { id }),
   importLegacyDb: () => invoke<boolean>('import_legacy_db'),
   importCsv: (csvContent: string) => invoke<ImportResult>('import_csv', { csvContent })
 };

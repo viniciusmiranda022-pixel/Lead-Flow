@@ -26,14 +26,10 @@ export interface Lead {
   updated_at: string;
   last_contacted_at: string | null;
   next_followup_at: string | null;
-  customer_id: number | null;
-  contact_id: number | null;
 }
 
-export interface LeadPayload extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at' | 'next_followup_at' | 'customer_id' | 'contact_id'> {
+export interface LeadPayload extends Omit<Lead, 'id' | 'created_at' | 'updated_at' | 'last_contacted_at' | 'next_followup_at'> {
   next_followup_at: string;
-  customer_id?: number | null;
-  contact_id?: number | null;
 }
 
 export interface Collaborator {
@@ -47,40 +43,6 @@ export interface Collaborator {
 export interface CollaboratorPayload {
   nome: string;
   observacoes?: string;
-}
-
-export interface Customer {
-  id: number;
-  name: string;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CustomerPayload {
-  name: string;
-  notes?: string;
-}
-
-export interface Contact {
-  id: number;
-  customer_id: number;
-  name: string;
-  email: string;
-  phone: string;
-  job_title: string;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ContactPayload {
-  customer_id: number;
-  name: string;
-  email?: string;
-  phone?: string;
-  job_title?: string;
-  notes?: string;
 }
 
 export interface Project {
