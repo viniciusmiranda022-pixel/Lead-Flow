@@ -410,9 +410,12 @@ export function App() {
       setCsvImportResult(result);
       await refresh();
     } catch (error) {
+ codex/fix-csv-importer-for-leadflow-51bwwc
+
  codex/fix-csv-importer-for-leadflow-2rcny1
 
  codex/fix-csv-importer-for-leadflow-wsessa
+ main
  main
       const message =
         typeof error === "string"
@@ -421,9 +424,12 @@ export function App() {
             ? String((error as { message?: unknown }).message ?? "Falha ao importar CSV.")
             : "Falha ao importar CSV.";
 
+ codex/fix-csv-importer-for-leadflow-51bwwc
+
  codex/fix-csv-importer-for-leadflow-2rcny1
 
 
+ main
  main
  main
       setCsvImportResult({
@@ -434,6 +440,9 @@ export function App() {
             row: 0,
             company: "",
             email: "",
+ codex/fix-csv-importer-for-leadflow-51bwwc
+            message,
+
  codex/fix-csv-importer-for-leadflow-2rcny1
             message,
 
@@ -441,6 +450,7 @@ export function App() {
             message,
 
             message: error instanceof Error ? error.message : "Falha ao importar CSV.",
+ main
  main
  main
           },
