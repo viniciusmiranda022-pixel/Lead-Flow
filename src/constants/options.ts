@@ -43,6 +43,7 @@ export const INDUSTRIES = [
   'Outros'
 ] as const;
 
+ codex/add-dropdown-for-latin-america-options
 export const LATAM_LOCATIONS = [
   'Argentina, Buenos Aires',
   'Bolívia, Santa Cruz de la Sierra',
@@ -60,5 +61,23 @@ export const LATAM_LOCATIONS = [
   'República Dominicana, Santo Domingo',
   'Uruguai, Montevidéu',
   'Venezuela, Caracas',
+
+export const LATAM_COUNTRIES = [
+  'Argentina',
+  'Bolívia',
+  'Brasil',
+  'Chile',
+  'Colômbia',
+  'Costa Rica',
+  'Equador',
+  'Guatemala',
+  'México',
+  'Panamá',
+  'Paraguai',
+  'Peru',
+  'República Dominicana',
+  'Uruguai',
+  'Venezuela',
+ main
   'Outro'
 ] as const;

@@ -1,4 +1,12 @@
-export type StageKey = "Novo" | "Contatado" | "Apresentação" | "Pausado" | "Perdido";
+import type { ProjectStatus } from "../types";
+
+export type StageKey =
+  | "Novo"
+  | "Contatado"
+  | "Apresentação"
+  | "Ganho"
+  | "Pausado"
+  | "Perdido";
 
 export type StageMeta = {
   key: StageKey;
@@ -8,7 +16,14 @@ export type StageMeta = {
   tint: string;
 };
 
-export const STAGES: StageKey[] = ["Novo", "Contatado", "Apresentação", "Pausado", "Perdido"];
+export const STAGES: StageKey[] = [
+  "Novo",
+  "Contatado",
+  "Apresentação",
+  "Ganho",
+  "Pausado",
+  "Perdido",
+];
 
 export const stageMeta: Record<StageKey, StageMeta> = {
   Novo: {
@@ -25,11 +40,18 @@ export const stageMeta: Record<StageKey, StageMeta> = {
     strong: "#F59E0B",
     tint: "#FFFBEB",
   },
-  "Apresentação": {
+  Apresentação: {
     key: "Apresentação",
     label: "Apresentação",
     emoji: "🖥️",
     strong: "#10B981",
+    tint: "#ECFDF5",
+  },
+  Ganho: {
+    key: "Ganho",
+    label: "Ganho",
+    emoji: "🏆",
+    strong: "#059669",
     tint: "#ECFDF5",
   },
   Pausado: {
@@ -51,12 +73,32 @@ export const stageMeta: Record<StageKey, StageMeta> = {
 export const stageColorMap: Record<StageKey, string> = {
   Novo: "#2563EB",
   Contatado: "#F59E0B",
-  "Apresentação": "#10B981",
+  Apresentação: "#10B981",
+  Ganho: "#059669",
   Pausado: "#64748B",
   Perdido: "#EF4444",
 };
 
-export const interestChartPalette = ["#2563EB", "#06B6D4", "#10B981", "#F59E0B", "#64748B", "#A855F7", "#0EA5E9", "#22C55E"];
+export const interestChartPalette = [
+  "#2563EB",
+  "#06B6D4",
+  "#10B981",
+  "#F59E0B",
+  "#64748B",
+  "#A855F7",
+  "#0EA5E9",
+  "#22C55E",
+];
+
+export const projectStatusColorMap: Record<ProjectStatus, string> = {
+  Discovery: "#2563EB",
+  "Em negociação": "#F59E0B",
+  Planejado: "#6366F1",
+  "Pré-Venda": "#14B8A6",
+  "Aguardando Cliente": "#94A3B8",
+  Aprovado: "#10B981",
+  Faturado: "#059669",
+};
 
 export type InterestMeta = {
   label: string;
@@ -75,7 +117,11 @@ export function getStageKey(value: string | undefined | null): StageKey {
   const raw = (value ?? "").trim();
   if (STAGES.includes(raw as StageKey)) return raw as StageKey;
   const lower = raw.toLowerCase();
-  if (lower === "apresentação de portifolio feita" || lower === "apresentacao de portifolio feita") return "Apresentação";
+  if (
+    lower === "apresentação de portifolio feita" ||
+    lower === "apresentacao de portifolio feita"
+  )
+    return "Apresentação";
   return "Novo";
 }
 
@@ -83,11 +129,15 @@ export function getStageMeta(value: string | undefined | null): StageMeta {
   return stageMeta[getStageKey(value)];
 }
 
-export function getInterestMeta(value: string | undefined | null): InterestMeta | null {
+export function getInterestMeta(
+  value: string | undefined | null,
+): InterestMeta | null {
   const raw = (value ?? "").trim();
   if (!raw) return null;
 
-  const match = interestPresets.find((p) => p.label.toLowerCase() === raw.toLowerCase());
+  const match = interestPresets.find(
+    (p) => p.label.toLowerCase() === raw.toLowerCase(),
+  );
   if (match) return match;
 
   const idx = hashString(raw) % interestPresets.length;

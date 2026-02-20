@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+ codex/add-dropdown-for-latin-america-options
 import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_LOCATIONS } from '../constants/options';
+
+import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_COUNTRIES } from '../constants/options';
+ main
 import { STAGES } from '../types';
 import type { Lead, LeadPayload, Stage } from '../types';
 import { Button } from './ui/Button';
@@ -21,12 +25,16 @@ const emptyPayload: LeadPayload = {
   phone: '',
   linkedin: '',
   location: '',
+  country: '',
+  state: '',
+  city: '',
   company_size: '',
   industry: '',
   interest: '',
   stage: 'Novo',
   notes: '',
-  next_followup_at: ''
+  next_followup_at: '',
+  rating: null
 };
 
 function onlyDigits(v: string) {
@@ -39,6 +47,14 @@ function isValidEmail(email: string) {
   const at = e.indexOf('@');
   if (at <= 0) return false;
   return e.slice(at + 1).includes('.');
+}
+
+function parseLegacyLocation(location: string) {
+  const parts = (location || '').split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { country: '', state: '', city: '' };
+  if (parts.length === 1) return { country: parts[0], state: '', city: '' };
+  if (parts.length === 2) return { country: parts[0], state: '', city: parts[1] };
+  return { country: parts[0], state: parts[1], city: parts.slice(2).join(', ') };
 }
 
 function validate(form: LeadPayload) {
@@ -65,12 +81,18 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
   const [interestCustom, setInterestCustom] = useState('');
   const [industryOption, setIndustryOption] = useState('');
   const [industryCustom, setIndustryCustom] = useState('');
+ codex/add-dropdown-for-latin-america-options
   const [locationOption, setLocationOption] = useState('');
   const [locationCustom, setLocationCustom] = useState('');
+
+  const [countryOption, setCountryOption] = useState('');
+  const [countryCustom, setCountryCustom] = useState('');
+ main
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open) {
+      const legacy = lead ? parseLegacyLocation(lead.location) : { country: '', state: '', city: '' };
       const nextPayload = lead
         ? {
             company: lead.company,
@@ -80,12 +102,16 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
             phone: lead.phone,
             linkedin: lead.linkedin,
             location: lead.location,
+            country: lead.country || legacy.country,
+            state: lead.state || legacy.state,
+            city: lead.city || legacy.city,
             company_size: lead.company_size,
             industry: lead.industry,
             interest: lead.interest,
             stage: lead.stage,
             notes: lead.notes,
-            next_followup_at: lead.next_followup_at ?? ''
+            next_followup_at: lead.next_followup_at ?? '',
+            rating: lead.rating
           }
         : { ...emptyPayload };
 
@@ -100,9 +126,15 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
       setIndustryOption(isKnownIndustry ? nextPayload.industry : nextPayload.industry ? 'Outros' : '');
       setIndustryCustom(isKnownIndustry ? '' : nextPayload.industry);
 
+ codex/add-dropdown-for-latin-america-options
       const isKnownLocation = LATAM_LOCATIONS.includes(nextPayload.location as (typeof LATAM_LOCATIONS)[number]);
       setLocationOption(isKnownLocation ? nextPayload.location : nextPayload.location ? 'Outro' : '');
       setLocationCustom(isKnownLocation ? '' : nextPayload.location);
+
+      const isKnownCountry = LATAM_COUNTRIES.includes(nextPayload.country as (typeof LATAM_COUNTRIES)[number]);
+      setCountryOption(isKnownCountry ? nextPayload.country : nextPayload.country ? 'Outro' : '');
+      setCountryCustom(isKnownCountry ? '' : nextPayload.country);
+ main
     }
   }, [open, lead]);
 
@@ -144,9 +176,16 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
     try {
       const interest = interestOption === 'Outro' ? interestCustom.trim() || 'Outro' : interestOption;
       const industry = industryOption === 'Outros' ? industryCustom.trim() || 'Outros' : industryOption;
+ codex/add-dropdown-for-latin-america-options
       const location = locationOption === 'Outro' ? locationCustom.trim() || 'Outro' : locationOption;
 
       await onSave({ ...payload, interest, industry, location });
+
+      const country = countryOption === 'Outro' ? countryCustom.trim() || 'Outro' : countryOption;
+      const location = [country, payload.state.trim(), payload.city.trim()].filter(Boolean).join(', ');
+
+      await onSave({ ...payload, interest, industry, country, location });
+ main
       onClose();
     } finally {
       setLoading(false);
@@ -166,8 +205,8 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
         <div className="lf-modal-body">
           <div className="grid gap-3 md:grid-cols-2">
             {[
-              { key: 'company', label: 'Empresa', placeholder: 'Nome da empresa', required: true },
-              { key: 'contact_name', label: 'Contato', placeholder: 'Nome da pessoa', required: true },
+              { key: 'company', label: 'Empresa', placeholder: 'Ex: ACME Corp', required: true },
+              { key: 'contact_name', label: 'Contato', placeholder: 'Nome do contato', required: true },
               { key: 'job_title', label: 'Cargo', placeholder: 'Ex: Head de Marketing', required: false },
               { key: 'email', label: 'E-mail', placeholder: 'email@empresa.com', required: true },
               { key: 'phone', label: 'Telefone', placeholder: '+55 (11) 99999-9999', required: true },
@@ -185,6 +224,39 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
                 {errors[field.key] ? <p className="error-text">{errors[field.key]}</p> : null}
               </label>
             ))}
+
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              País
+              <select className="lf-input lf-focusable" value={countryOption} onChange={(e) => setCountryOption(e.target.value)}>
+                <option value="" disabled>
+                  Selecione...
+                </option>
+                {LATAM_COUNTRIES.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {countryOption === 'Outro' ? (
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                País personalizado
+                <Input className="lf-input lf-focusable" value={countryCustom} onChange={(e) => setCountryCustom(e.target.value)} placeholder="Ex: El Salvador" />
+              </label>
+            ) : (
+              <div />
+            )}
+
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              Estado
+              <Input className="lf-input lf-focusable" value={payload.state} onChange={(e) => set('state', e.target.value)} placeholder="Ex: São Paulo" />
+            </label>
+
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              Cidade
+              <Input className="lf-input lf-focusable" value={payload.city} onChange={(e) => set('city', e.target.value)} placeholder="Ex: Campinas" />
+            </label>
+
             <label className="space-y-1 text-xs font-medium text-slate-600">
               País/Cidade
               <select className="lf-input lf-focusable" value={locationOption} onChange={(e) => setLocationOption(e.target.value)}>
@@ -255,6 +327,17 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
                 <Input className="lf-input lf-focusable" value={interestCustom} onChange={(e) => setInterestCustom(e.target.value)} placeholder="Digite o interesse..." />
               </label>
             )}
+
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              Rating
+              <select className="lf-input lf-focusable" value={payload.rating ?? ''} onChange={(e) => setPayload((prev) => ({ ...prev, rating: e.target.value ? Number(e.target.value) : null }))}>
+                <option value="">Sem rating</option>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>{value} estrela(s)</option>
+                ))}
+              </select>
+            </label>
+
             <label className="space-y-1 text-xs font-medium text-slate-600">
               Status
               <Select
