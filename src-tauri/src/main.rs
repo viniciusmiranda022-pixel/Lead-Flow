@@ -902,10 +902,23 @@ fn list_collaborators() -> Result<Vec<Collaborator>, String> {
             "SELECT id, nome, observacoes, created_at, updated_at FROM collaborators ORDER BY nome",
         )
         .map_err(|e| e.to_string())?;
+ codex/expand-follow-up-alerts-and-project-module-i9kui9
+
+    let rows = stmt
+        .query_map([], row_to_collaborator)
+        .map_err(|e| e.to_string())?;
+
+    let collaborators = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(collaborators)
+
     stmt.query_map([], row_to_collaborator)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+ main
 }
 
 #[tauri::command]
