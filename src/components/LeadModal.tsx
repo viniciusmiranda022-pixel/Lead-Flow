@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+ codex/add-dropdown-for-latin-america-options
+import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_LOCATIONS } from '../constants/options';
+
 import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_COUNTRIES } from '../constants/options';
+ main
 import { STAGES } from '../types';
 import type { Lead, LeadPayload, Stage } from '../types';
 import { Button } from './ui/Button';
@@ -77,8 +81,13 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
   const [interestCustom, setInterestCustom] = useState('');
   const [industryOption, setIndustryOption] = useState('');
   const [industryCustom, setIndustryCustom] = useState('');
+ codex/add-dropdown-for-latin-america-options
+  const [locationOption, setLocationOption] = useState('');
+  const [locationCustom, setLocationCustom] = useState('');
+
   const [countryOption, setCountryOption] = useState('');
   const [countryCustom, setCountryCustom] = useState('');
+ main
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -117,9 +126,15 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
       setIndustryOption(isKnownIndustry ? nextPayload.industry : nextPayload.industry ? 'Outros' : '');
       setIndustryCustom(isKnownIndustry ? '' : nextPayload.industry);
 
+ codex/add-dropdown-for-latin-america-options
+      const isKnownLocation = LATAM_LOCATIONS.includes(nextPayload.location as (typeof LATAM_LOCATIONS)[number]);
+      setLocationOption(isKnownLocation ? nextPayload.location : nextPayload.location ? 'Outro' : '');
+      setLocationCustom(isKnownLocation ? '' : nextPayload.location);
+
       const isKnownCountry = LATAM_COUNTRIES.includes(nextPayload.country as (typeof LATAM_COUNTRIES)[number]);
       setCountryOption(isKnownCountry ? nextPayload.country : nextPayload.country ? 'Outro' : '');
       setCountryCustom(isKnownCountry ? '' : nextPayload.country);
+ main
     }
   }, [open, lead]);
 
@@ -161,10 +176,16 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
     try {
       const interest = interestOption === 'Outro' ? interestCustom.trim() || 'Outro' : interestOption;
       const industry = industryOption === 'Outros' ? industryCustom.trim() || 'Outros' : industryOption;
+ codex/add-dropdown-for-latin-america-options
+      const location = locationOption === 'Outro' ? locationCustom.trim() || 'Outro' : locationOption;
+
+      await onSave({ ...payload, interest, industry, location });
+
       const country = countryOption === 'Outro' ? countryCustom.trim() || 'Outro' : countryOption;
       const location = [country, payload.state.trim(), payload.city.trim()].filter(Boolean).join(', ');
 
       await onSave({ ...payload, interest, industry, country, location });
+ main
       onClose();
     } finally {
       setLoading(false);
@@ -236,6 +257,25 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
               <Input className="lf-input lf-focusable" value={payload.city} onChange={(e) => set('city', e.target.value)} placeholder="Ex: Campinas" />
             </label>
 
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              País/Cidade
+              <select className="lf-input lf-focusable" value={locationOption} onChange={(e) => setLocationOption(e.target.value)}>
+                <option value="" disabled>
+                  Selecione...
+                </option>
+                {LATAM_LOCATIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {locationOption === 'Outro' && (
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                País/Cidade personalizado
+                <Input className="lf-input lf-focusable" value={locationCustom} onChange={(e) => setLocationCustom(e.target.value)} placeholder="Ex: El Salvador, San Salvador" />
+              </label>
+            )}
             <label className="space-y-1 text-xs font-medium text-slate-600">
               Tamanho
               <select className="lf-input lf-focusable" value={payload.company_size} onChange={(e) => set('company_size', e.target.value)}>
