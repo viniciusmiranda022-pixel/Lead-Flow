@@ -12,7 +12,8 @@ Aplicativo desktop instalável para gestão local de leads com visual SaaS premi
 
 ## Regras de negócio preservadas
 
-- Stages: **Novo, Contatado, Apresentação, Pausado, Perdido**.
+- Stages: **Novo, Contatado, Apresentação, Ganho, Pausado, Perdido**.
+- Nota: alterar estágios somente via `src/types.ts` e depois refletir no README.
 - CRUD completo de leads.
 - `created_at` e `updated_at` automáticos.
 - `last_contacted_at` é definido quando o lead passa para **Contatado**.
