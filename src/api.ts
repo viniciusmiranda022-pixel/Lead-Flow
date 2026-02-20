@@ -6,6 +6,17 @@ type RestoreDatabaseResult = {
   restartRequired: boolean;
 };
 
+const isMissingCommandError = (error: unknown, command: string) => {
+  const message =
+    typeof error === 'string'
+      ? error
+      : error && typeof error === 'object' && 'message' in error
+        ? String((error as { message?: unknown }).message ?? '')
+        : '';
+
+  return message.includes(`Command ${command} not found`);
+};
+
 export const api = {
   getDashboard: () => invoke<DashboardData>('get_dashboard_data'),
   listLeads: () => invoke<Lead[]>('list_leads'),
@@ -23,11 +34,31 @@ export const api = {
   createCollaborator: (payload: CollaboratorPayload) => invoke<Collaborator>('create_collaborator', { payload }),
   updateCollaborator: (id: number, payload: CollaboratorPayload) => invoke<Collaborator>('update_collaborator', { id, payload }),
   deleteCollaborator: (id: number) => invoke<void>('delete_collaborator', { id }),
-  listCustomers: () => invoke<Customer[]>('list_customers'),
+  listCustomers: async () => {
+    try {
+      return await invoke<Customer[]>('list_customers');
+    } catch (error) {
+      if (isMissingCommandError(error, 'list_customers')) {
+        return [];
+      }
+
+      throw error;
+    }
+  },
   createCustomer: (payload: CustomerPayload) => invoke<Customer>('create_customer', { payload }),
   updateCustomer: (id: number, payload: CustomerPayload) => invoke<Customer>('update_customer', { id, payload }),
   deleteCustomer: (id: number) => invoke<void>('delete_customer', { id }),
-  listContactsByCustomer: (customerId: number) => invoke<Contact[]>('list_contacts_by_customer', { customerId }),
+  listContactsByCustomer: async (customerId: number) => {
+    try {
+      return await invoke<Contact[]>('list_contacts_by_customer', { customerId });
+    } catch (error) {
+      if (isMissingCommandError(error, 'list_contacts_by_customer')) {
+        return [];
+      }
+
+      throw error;
+    }
+  },
   createContact: (payload: ContactPayload) => invoke<Contact>('create_contact', { payload }),
   updateContact: (id: number, payload: ContactPayload) => invoke<Contact>('update_contact', { id, payload }),
   deleteContact: (id: number) => invoke<void>('delete_contact', { id }),
