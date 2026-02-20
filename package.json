@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run check:source-integrity && tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "npm run check:source-integrity && tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:source-integrity": "node scripts/check-source-artifacts.mjs",
+    "fix:source-artifacts": "node scripts/check-source-artifacts.mjs --fix"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",
