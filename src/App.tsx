@@ -22,6 +22,7 @@ import {
   Settings,
   TriangleAlert,
   Upload,
+  UserRoundCheck,
   UserRoundX,
   Users,
   UsersRound,
@@ -73,6 +74,7 @@ type Page =
   | "Dashboard"
   | "Leads"
   | "Clientes"
+  | "Leads Ganhos"
   | "Leads Perdidos"
   | "Projetos"
   | "Colaboradores"
@@ -83,6 +85,7 @@ const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "Leads", icon: Users },
   { label: "Clientes", icon: BriefcaseBusiness },
+  { label: "Leads Ganhos", icon: UserRoundCheck },
   { label: "Leads Perdidos", icon: UserRoundX },
   { label: "Projetos", icon: FolderKanban },
   { label: "Colaboradores", icon: UsersRound },
@@ -973,6 +976,49 @@ export function App() {
               ) : null}
               <section className="grid gap-3">
                 {filteredLostLeads.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    projects={projectsByLead[lead.id] ?? []}
+                    onEdit={(row) => {
+                      setEditingLead(row);
+                      setModalOpen(true);
+                    }}
+                    onDelete={(row) => setDeleteLead(row)}
+                    onUpdateStage={updateStage}
+                    onCreateProject={(row) => {
+                      setPrefilledLeadId(row.id);
+                      setProjectModalOpen(true);
+                    }}
+                    onUpdateProjectStatus={async (project, status) => {
+                      await api.updateProjectStatus(project.id, status);
+                      await refresh();
+                    }}
+                  />
+                ))}
+              </section>
+            </>
+          ) : null}
+
+          {page === "Leads Ganhos" ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-xl font-semibold">Leads Ganhos</h1>
+                <input
+                  className="lf-input w-full max-w-72"
+                  placeholder="Buscar por empresa ou contato"
+                  value={wonSearch}
+                  onChange={(event) => setWonSearch(event.target.value)}
+                />
+              </div>
+              {wonPendingFollowups.length > 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  {wonPendingFollowups.length} leads ganhos com follow-up
+                  pendente.
+                </div>
+              ) : null}
+              <section className="grid gap-3">
+                {filteredWonLeads.map((lead) => (
                   <LeadCard
                     key={lead.id}
                     lead={lead}
