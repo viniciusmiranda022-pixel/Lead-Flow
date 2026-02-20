@@ -1160,6 +1160,7 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
     }
 
     let mut attention_stmt = conn
+ codex/fix-csv-importer-for-leadflow-2rcny1
         .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN (?1, ?2, ?3) ORDER BY updated_at DESC LIMIT 8")
         .map_err(|e| e.to_string())?;
     let attention_projects = attention_stmt
@@ -1171,6 +1172,12 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
             ],
             row_to_project,
         )
+
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, valor_bruto_negociado, valor_bruto_licencas, valor_bruto_comissao_licencas, valor_bruto_servico, imposto_pct, fundo_pct, pct_fixo, pct_prevenda, pct_implantacao, pct_comercial, pct_indicacao, previsao_faturamento, repasse_adistec, liquido_servico, liquido_comissao_licencas, total_liquido, comercial_ids, prevenda_ids, implantacao_ids, indicacao_ids, fixo_ids, created_at, updated_at FROM projects WHERE status IN ('Em negociação', 'Aguardando Cliente', 'Pré-Venda') ORDER BY updated_at DESC LIMIT 8")
+        .map_err(|e| e.to_string())?;
+    let attention_projects = attention_stmt
+        .query_map([], row_to_project)
+ main
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
