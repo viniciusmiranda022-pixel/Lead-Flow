@@ -1,13 +1,30 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use chrono::Local;
-use dirs::{config_dir, data_dir};
 use csv::ReaderBuilder;
+use dirs::{config_dir, data_dir};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
 
-const STAGES: [&str; 6] = ["Novo", "Contatado", "Apresentação", "Ganho", "Pausado", "Perdido"];
+const STAGES: [&str; 6] = [
+    "Novo",
+    "Contatado",
+    "Apresentação",
+    "Ganho",
+    "Pausado",
+    "Perdido",
+];
+const PROJECT_STATUSES: [&str; 7] = [
+    "Discovery",
+    "Em negociação",
+    "Planejado",
+    "Pré-Venda",
+    "Aguardando Cliente",
+    "Aprovado",
+    "Faturado",
+];
+const PROJECT_ATTENTION_STATUSES: [&str; 3] = ["Em negociação", "Aguardando Cliente", "Pré-Venda"];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Lead {
@@ -27,6 +44,7 @@ struct Lead {
     interest: String,
     stage: String,
     notes: String,
+    rating: Option<i64>,
     created_at: String,
     updated_at: String,
     last_contacted_at: Option<String>,
@@ -50,7 +68,29 @@ struct LeadPayload {
     interest: String,
     stage: String,
     notes: String,
+    rating: Option<i64>,
     next_followup_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Project {
+    id: i64,
+    lead_id: i64,
+    nome_projeto: String,
+    status: String,
+    descricao: String,
+    valor_estimado: Option<f64>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProjectPayload {
+    lead_id: i64,
+    nome_projeto: String,
+    status: String,
+    descricao: Option<String>,
+    valor_estimado: Option<f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,6 +99,8 @@ struct DashboardData {
     by_status: HashMap<String, i64>,
     by_interest: Vec<NameValue>,
     latest: Vec<Lead>,
+    projects_by_status: HashMap<String, i64>,
+    attention_projects: Vec<Project>,
 }
 
 #[derive(Debug, Serialize)]
@@ -119,7 +161,9 @@ fn normalize_stage(stage: &str) -> String {
     }
 
     match normalized.to_lowercase().as_str() {
-        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => "Apresentação".to_string(),
+        "apresentação de portifolio feita" | "apresentacao de portifolio feita" => {
+            "Apresentação".to_string()
+        }
         "ganho" | "ganha" | "convertido" | "convertida" | "won" => "Ganho".to_string(),
         _ => "Novo".to_string(),
     }
@@ -147,7 +191,25 @@ fn validate_payload(payload: &LeadPayload) -> Result<(), String> {
     if is_blank(&payload.stage) {
         return Err("Status é obrigatório".into());
     }
+    if let Some(rating) = payload.rating {
+        if !(1..=5).contains(&rating) {
+            return Err("Rating deve estar entre 1 e 5".into());
+        }
+    }
 
+    Ok(())
+}
+
+fn validate_project_payload(payload: &ProjectPayload) -> Result<(), String> {
+    if payload.lead_id <= 0 {
+        return Err("Lead inválido".into());
+    }
+    if payload.nome_projeto.trim().is_empty() {
+        return Err("Nome do projeto é obrigatório".into());
+    }
+    if !PROJECT_STATUSES.contains(&payload.status.trim()) {
+        return Err("Status do projeto inválido".into());
+    }
     Ok(())
 }
 
@@ -161,9 +223,9 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
     };
 
     conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
@@ -174,7 +236,6 @@ fn insert_lead(conn: &Connection, payload: &LeadPayload) -> Result<Lead, String>
 fn normalize_csv_header(s: &str) -> String {
     let s = s.trim().trim_start_matches('\u{feff}').to_lowercase();
 
-    // remove acentos comuns pt-br sem dependência extra
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         let mapped = match ch {
@@ -189,14 +250,12 @@ fn normalize_csv_header(s: &str) -> String {
         out.push(mapped);
     }
 
-    // remove espaços, hífens etc e deixa só letras/números
     out.chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .collect::<String>()
 }
 
 fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
-    // Mapa: header normalizado -> índice da coluna
     let mut index_map: HashMap<String, usize> = HashMap::new();
     for (i, raw) in headers.iter().enumerate() {
         let key = normalize_csv_header(raw);
@@ -205,17 +264,36 @@ fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
         }
     }
 
-    // Campos canônicos que o import vai usar internamente
-    // (ajuste aqui se seu import espera outros nomes)
     let aliases: [(&str, &[&str]); 5] = [
-        ("company", &["empresa", "company", "nomeempresa", "razaosocial", "organizacao"]),
-        ("contact_name", &["contato", "contact", "nomecontato", "responsavel", "pessoa", "nome"]),
+        (
+            "company",
+            &[
+                "empresa",
+                "company",
+                "nomeempresa",
+                "razaosocial",
+                "organizacao",
+            ],
+        ),
+        (
+            "contact_name",
+            &[
+                "contato",
+                "contact",
+                "nomecontato",
+                "responsavel",
+                "pessoa",
+                "nome",
+            ],
+        ),
         ("email", &["email", "e-mail", "mail"]),
-        ("phone", &["telefone", "phone", "celular", "whatsapp", "tel", "fone"]),
+        (
+            "phone",
+            &["telefone", "phone", "celular", "whatsapp", "tel", "fone"],
+        ),
         ("stage", &["status", "stage", "etapa", "fase"]),
     ];
 
-    // Resultado: campo canônico -> índice no CSV
     let mut out: HashMap<String, usize> = HashMap::new();
 
     for (field, opts) in aliases {
@@ -240,13 +318,16 @@ fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key:
 }
 
 fn csv_delimiter(csv_content: &str) -> u8 {
-    // Detecta delimitador olhando a primeira linha (header)
     let first_line = csv_content.lines().next().unwrap_or("");
 
     let commas = first_line.matches(',').count();
     let semicolons = first_line.matches(';').count();
 
-    if semicolons > commas { b';' } else { b',' }
+    if semicolons > commas {
+        b';'
+    } else {
+        b','
+    }
 }
 
 fn app_db_path() -> Result<PathBuf, String> {
@@ -298,10 +379,27 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id INTEGER NOT NULL,
+            nome_projeto TEXT NOT NULL,
+            status TEXT NOT NULL,
+            descricao TEXT,
+            valor_estimado REAL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
     ensure_column(conn, "leads", "next_followup_at", "TEXT")?;
     ensure_column(conn, "leads", "country", "TEXT")?;
     ensure_column(conn, "leads", "state", "TEXT")?;
     ensure_column(conn, "leads", "city", "TEXT")?;
+    ensure_column(conn, "leads", "rating", "INTEGER")?;
 
     Ok(())
 }
@@ -358,19 +456,34 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         interest: text(13)?,
         stage: text(14)?,
         notes: text(15)?,
-        created_at: text(16)?,
-        updated_at: text(17)?,
-        last_contacted_at: row.get(18)?,
-        next_followup_at: row.get(19)?,
+        rating: row.get(16)?,
+        created_at: text(17)?,
+        updated_at: text(18)?,
+        last_contacted_at: row.get(19)?,
+        next_followup_at: row.get(20)?,
+    })
+}
+
+fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
+    let text = |index| -> rusqlite::Result<String> {
+        Ok(row.get::<_, Option<String>>(index)?.unwrap_or_default())
+    };
+    Ok(Project {
+        id: row.get(0)?,
+        lead_id: row.get(1)?,
+        nome_projeto: text(2)?,
+        status: text(3)?,
+        descricao: text(4)?,
+        valor_estimado: row.get(5)?,
+        created_at: text(6)?,
+        updated_at: text(7)?,
     })
 }
 
 #[tauri::command]
 fn list_leads() -> Result<Vec<Lead>, String> {
     let conn = open_db()?;
-    let mut stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC")
-        .map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_lead)
         .map_err(|e| e.to_string())?
@@ -381,7 +494,7 @@ fn list_leads() -> Result<Vec<Lead>, String> {
 
 fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
     conn.query_row(
-        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
+        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
         [id],
         row_to_lead,
     )
@@ -408,8 +521,8 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     }
 
     conn.execute(
-        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, updated_at=?16, last_contacted_at=?17, next_followup_at=?18 WHERE id=?19",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
+        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, rating=?16, updated_at=?17, last_contacted_at=?18, next_followup_at=?19 WHERE id=?20",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -467,6 +580,7 @@ fn import_csv(csv_content: String) -> Result<ImportResult, String> {
             industry: String::new(),
             interest: String::new(),
             notes: String::new(),
+            rating: None,
             next_followup_at: None,
         };
 
@@ -531,6 +645,96 @@ fn delete_lead(id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn list_projects() -> Result<Vec<Project>, String> {
+    let conn = open_db()?;
+    let mut stmt = conn
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects ORDER BY updated_at DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], row_to_project)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+#[tauri::command]
+fn list_projects_by_lead(lead_id: i64) -> Result<Vec<Project>, String> {
+    let conn = open_db()?;
+    let mut stmt = conn
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE lead_id = ? ORDER BY updated_at DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([lead_id], row_to_project)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+fn get_project(conn: &Connection, id: i64) -> Result<Project, String> {
+    conn.query_row(
+        "SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE id = ?",
+        [id],
+        row_to_project,
+    )
+    .map_err(|_| "Projeto não encontrado".to_string())
+}
+
+#[tauri::command]
+fn create_project(payload: ProjectPayload) -> Result<Project, String> {
+    let conn = open_db()?;
+    validate_project_payload(&payload)?;
+    get_lead(&conn, payload.lead_id)?;
+
+    let now = now_iso();
+    conn.execute(
+        "INSERT INTO projects (lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, now, now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    get_project(&conn, conn.last_insert_rowid())
+}
+
+#[tauri::command]
+fn update_project(id: i64, payload: ProjectPayload) -> Result<Project, String> {
+    let conn = open_db()?;
+    validate_project_payload(&payload)?;
+    get_lead(&conn, payload.lead_id)?;
+
+    conn.execute(
+        "UPDATE projects SET lead_id = ?1, nome_projeto = ?2, status = ?3, descricao = ?4, valor_estimado = ?5, updated_at = ?6 WHERE id = ?7",
+        params![payload.lead_id, payload.nome_projeto.trim(), payload.status.trim(), payload.descricao.as_deref().unwrap_or("").trim(), payload.valor_estimado, now_iso(), id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    get_project(&conn, id)
+}
+
+#[tauri::command]
+fn update_project_status(id: i64, status: String) -> Result<Project, String> {
+    if !PROJECT_STATUSES.contains(&status.as_str()) {
+        return Err("Status do projeto inválido".into());
+    }
+    let conn = open_db()?;
+    conn.execute(
+        "UPDATE projects SET status = ?1, updated_at = ?2 WHERE id = ?3",
+        params![status, now_iso(), id],
+    )
+    .map_err(|e| e.to_string())?;
+    get_project(&conn, id)
+}
+
+#[tauri::command]
+fn delete_project(id: i64) -> Result<(), String> {
+    let conn = open_db()?;
+    conn.execute("DELETE FROM projects WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn get_dashboard_data() -> Result<DashboardData, String> {
     let conn = open_db()?;
     let total: i64 = conn
@@ -566,10 +770,36 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut latest_stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
         .map_err(|e| e.to_string())?;
     let latest = latest_stmt
         .query_map([], row_to_lead)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut projects_by_status: HashMap<String, i64> = PROJECT_STATUSES
+        .iter()
+        .map(|status| (status.to_string(), 0))
+        .collect();
+    let mut projects_status_stmt = conn
+        .prepare("SELECT status, COUNT(*) FROM projects GROUP BY status")
+        .map_err(|e| e.to_string())?;
+    let project_counts = projects_status_stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    for row in project_counts {
+        let (status, qty) = row.map_err(|e| e.to_string())?;
+        projects_by_status.insert(status, qty);
+    }
+
+    let mut attention_stmt = conn
+        .prepare("SELECT id, lead_id, nome_projeto, status, descricao, valor_estimado, created_at, updated_at FROM projects WHERE status IN ('Em negociação', 'Aguardando Cliente', 'Pré-Venda') ORDER BY updated_at DESC LIMIT 8")
+        .map_err(|e| e.to_string())?;
+    let attention_projects = attention_stmt
+        .query_map([], row_to_project)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -579,6 +809,8 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         by_status,
         by_interest,
         latest,
+        projects_by_status,
+        attention_projects,
     })
 }
 
@@ -603,6 +835,12 @@ fn main() {
             update_lead,
             update_stage,
             delete_lead,
+            list_projects,
+            list_projects_by_lead,
+            create_project,
+            update_project,
+            update_project_status,
+            delete_project,
             get_dashboard_data,
             import_legacy_db,
             import_csv

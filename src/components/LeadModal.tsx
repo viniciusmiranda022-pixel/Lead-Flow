@@ -29,7 +29,8 @@ const emptyPayload: LeadPayload = {
   interest: '',
   stage: 'Novo',
   notes: '',
-  next_followup_at: ''
+  next_followup_at: '',
+  rating: null
 };
 
 function onlyDigits(v: string) {
@@ -100,7 +101,8 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
             interest: lead.interest,
             stage: lead.stage,
             notes: lead.notes,
-            next_followup_at: lead.next_followup_at ?? ''
+            next_followup_at: lead.next_followup_at ?? '',
+            rating: lead.rating
           }
         : { ...emptyPayload };
 
@@ -285,6 +287,17 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
                 <Input className="lf-input lf-focusable" value={interestCustom} onChange={(e) => setInterestCustom(e.target.value)} placeholder="Digite o interesse..." />
               </label>
             )}
+
+            <label className="space-y-1 text-xs font-medium text-slate-600">
+              Rating
+              <select className="lf-input lf-focusable" value={payload.rating ?? ''} onChange={(e) => setPayload((prev) => ({ ...prev, rating: e.target.value ? Number(e.target.value) : null }))}>
+                <option value="">Sem rating</option>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>{value} estrela(s)</option>
+                ))}
+              </select>
+            </label>
+
             <label className="space-y-1 text-xs font-medium text-slate-600">
               Status
               <Select
