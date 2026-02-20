@@ -10,8 +10,12 @@
     "tauri": "npm run check:source-integrity && tauri",
     "test": "vitest run",
     "test:watch": "vitest",
+ codex/fix-csv-importer-for-leadflow-lo003g
     "check:source-integrity": "node scripts/check-source-artifacts.mjs",
     "fix:source-artifacts": "node scripts/check-source-artifacts.mjs --fix"
+
+    "check:source-integrity": "node scripts/check-source-artifacts.mjs"
+ main
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",
