@@ -74,7 +74,10 @@ fn ensure_windows_icon() {
     }
 
     if let Err(err) = write_minimal_ico(icon_path) {
-        panic!("failed to create required Tauri icon at {}: {err}", icon_path.display());
+        panic!(
+            "failed to create required Tauri icon at {}: {err}",
+            icon_path.display()
+        );
     }
 }
 
