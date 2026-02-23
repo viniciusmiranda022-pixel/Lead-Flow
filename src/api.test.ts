@@ -15,6 +15,23 @@ describe('parseBackendError', () => {
     expect(parsed.friendlyMessage).toBe('arquivo inválido');
   });
 
+  it('não aceita prefixo arbitrário mesmo com conteúdo semelhante', () => {
+    expect(
+      __apiTestables.parseBackendError('Erro de runtime estranho: [RESTORE_INVALID_SQLITE] arquivo inválido'),
+    ).toEqual({
+      tag: null,
+      friendlyMessage: 'Erro de runtime estranho: [RESTORE_INVALID_SQLITE] arquivo inválido',
+    });
+  });
+
+  it('limita o fallback aos primeiros 80 caracteres', () => {
+    const longPrefix = `${'x'.repeat(81)}[RESTORE_INVALID_SQLITE] arquivo inválido`;
+    expect(__apiTestables.parseBackendError(longPrefix)).toEqual({
+      tag: null,
+      friendlyMessage: longPrefix,
+    });
+  });
+
   it('ignora colchetes no meio do texto e formatos frouxos', () => {
     expect(__apiTestables.parseBackendError('Erro genérico [RESTORE_INVALID_SQLITE]')).toEqual({
       tag: null,
