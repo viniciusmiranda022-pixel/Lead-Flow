@@ -1,10 +1,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use chrono::{Local, NaiveDateTime};
-use csv::{ReaderBuilder, Trim};
+mod backup_restore;
+mod error_tags;
+mod import_csv;
+mod logging;
+
+use crate::backup_restore::{
+    restore_with_rollback, run_backup_database, run_restore_database, validate_sqlite_backup,
+};
+use crate::import_csv::{import_csv_with_conn, parse_csv_datetime, run_import_csv};
+use chrono::Local;
 use dirs::{config_dir, data_dir};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+
 use std::{
     collections::HashMap,
     fs,
@@ -56,7 +65,7 @@ struct Lead {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct LeadPayload {
+pub(crate) struct LeadPayload {
     company: String,
     contact_name: String,
     job_title: String,
@@ -163,15 +172,18 @@ struct DashboardData {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ImportError {
     row: usize,
     message: String,
     company: String,
     email: String,
+    column: Option<String>,
+    received_value: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-struct ImportResult {
+pub(crate) struct ImportResult {
     imported: i64,
     skipped: i64,
     errors: Vec<ImportError>,
@@ -185,12 +197,30 @@ struct NameValue {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RestoreDatabaseResult {
+pub(crate) struct RestoreDatabaseResult {
     pre_restore_backup_path: String,
     restart_required: bool,
 }
 
-fn now_iso() -> String {
+pub(crate) fn import_error(
+    row: usize,
+    message: String,
+    company: String,
+    email: String,
+    column: Option<&str>,
+    received_value: Option<String>,
+) -> ImportError {
+    ImportError {
+        row,
+        message,
+        company,
+        email,
+        column: column.map(str::to_string),
+        received_value,
+    }
+}
+
+pub(crate) fn now_iso() -> String {
     Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()
 }
 
@@ -235,7 +265,7 @@ fn normalize_stage(stage: &str) -> String {
     }
 }
 
-fn validate_payload(payload: &LeadPayload) -> Result<(), String> {
+pub(crate) fn validate_payload(payload: &LeadPayload) -> Result<(), String> {
     if is_blank(&payload.company) {
         return Err("Empresa é obrigatória".into());
     }
@@ -321,7 +351,7 @@ fn insert_lead_with_timestamps(
     get_lead(conn, id)
 }
 
-fn upsert_lead_by_email(
+pub(crate) fn upsert_lead_by_email(
     conn: &Connection,
     payload: &LeadPayload,
     created_at: &str,
@@ -356,152 +386,7 @@ fn upsert_lead_by_email(
     insert_lead_with_timestamps(conn, payload, created_at, updated_at).map(|_| ())
 }
 
-fn normalize_csv_header(s: &str) -> String {
-    let s = s.trim().trim_start_matches('\u{feff}').to_lowercase();
-
-    let mut out = String::with_capacity(s.len());
-    for ch in s.chars() {
-        let mapped = match ch {
-            'á' | 'à' | 'ã' | 'â' | 'ä' => 'a',
-            'é' | 'ê' | 'è' | 'ë' => 'e',
-            'í' | 'ì' | 'î' | 'ï' => 'i',
-            'ó' | 'ò' | 'õ' | 'ô' | 'ö' => 'o',
-            'ú' | 'ù' | 'û' | 'ü' => 'u',
-            'ç' => 'c',
-            _ => ch,
-        };
-        out.push(mapped);
-    }
-
-    out.chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect::<String>()
-}
-
-fn build_header_map(headers: &csv::StringRecord) -> HashMap<String, usize> {
-    let mut index_map: HashMap<String, usize> = HashMap::new();
-    for (i, raw) in headers.iter().enumerate() {
-        let key = normalize_csv_header(raw);
-        if !key.is_empty() {
-            index_map.insert(key, i);
-        }
-    }
-
-    let aliases: [(&str, &[&str]); 9] = [
-        (
-            "company",
-            &[
-                "empresa",
-                "company",
-                "nomeempresa",
-                "razaosocial",
-                "organizacao",
-            ],
-        ),
-        (
-            "contact_name",
-            &[
-                "contato",
-                "contact",
-                "nomecontato",
-                "responsavel",
-                "pessoa",
-                "nome",
-            ],
-        ),
-        ("job_title", &["cargo", "jobtitle", "funcao"]),
-        ("email", &["email", "e-mail", "mail"]),
-        (
-            "phone",
-            &["telefone", "phone", "celular", "whatsapp", "tel", "fone"],
-        ),
-        ("interest", &["interesse", "interest"]),
-        ("stage", &["status", "stage", "etapa", "fase"]),
-        (
-            "created_at",
-            &["criadoem", "createdat", "datacriacao", "criacao"],
-        ),
-        (
-            "updated_at",
-            &[
-                "atualizadoem",
-                "updatedat",
-                "dataatualizacao",
-                "atualizacao",
-            ],
-        ),
-    ];
-
-    let mut out: HashMap<String, usize> = HashMap::new();
-
-    for (field, opts) in aliases {
-        for &opt in opts {
-            let opt_key = normalize_csv_header(opt);
-            if let Some(&idx) = index_map.get(opt_key.as_str()) {
-                out.insert(field.to_string(), idx);
-                break;
-            }
-        }
-    }
-
-    out
-}
-
-fn read_csv_field(record: &csv::StringRecord, map: &HashMap<String, usize>, key: &str) -> String {
-    map.get(key)
-        .and_then(|index| record.get(*index))
-        .unwrap_or_default()
-        .trim()
-        .to_string()
-}
-
-fn csv_delimiter(csv_content: &str) -> u8 {
-    let mut comma_score = 0;
-    let mut semicolon_score = 0;
-
-    for line in csv_content
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .take(15)
-    {
-        comma_score += line.matches(',').count();
-        semicolon_score += line.matches(';').count();
-    }
-
-    if semicolon_score > comma_score {
-        b';'
-    } else {
-        b','
-    }
-}
-
-fn parse_csv_datetime(raw: &str) -> Result<String, String> {
-    let cleaned = raw.trim().trim_matches('"');
-    if cleaned.is_empty() {
-        return Ok(now_iso());
-    }
-
-    let normalized = cleaned.replace(',', "");
-    let normalized = normalized.trim();
-
-    if let Ok(parsed) = NaiveDateTime::parse_from_str(normalized, "%d/%m/%Y %H:%M:%S") {
-        return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
-    }
-
-    if let Ok(parsed) = NaiveDateTime::parse_from_str(normalized, "%d/%m/%Y %H:%M") {
-        return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
-    }
-
-    if let Ok(date) = chrono::NaiveDate::parse_from_str(normalized, "%d/%m/%Y") {
-        if let Some(parsed) = date.and_hms_opt(0, 0, 0) {
-            return Ok(parsed.format("%Y-%m-%dT%H:%M:%S").to_string());
-        }
-    }
-
-    Err(format!("data inválida: {cleaned}"))
-}
-
-fn app_db_path() -> Result<PathBuf, String> {
+pub(crate) fn app_db_path() -> Result<PathBuf, String> {
     let base = if cfg!(target_os = "windows") {
         data_dir().ok_or("Não foi possível resolver AppData")?
     } else {
@@ -516,7 +401,7 @@ fn legacy_db_path() -> Option<PathBuf> {
     std::env::current_dir().ok().map(|d| d.join("leads.db"))
 }
 
-fn open_db() -> Result<Connection, String> {
+pub(crate) fn open_db() -> Result<Connection, String> {
     let path = app_db_path()?;
     let conn = Connection::open(path).map_err(|e| e.to_string())?;
     init_db(&conn)?;
@@ -775,129 +660,7 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
 
 #[tauri::command]
 fn import_csv(csv_content: String) -> Result<ImportResult, String> {
-    let csv_content = csv_content.trim_start_matches('\u{feff}').to_string();
-    if csv_content.trim().is_empty() {
-        return Err("CSV vazio".into());
-    }
-
-    let delimiter = csv_delimiter(&csv_content);
-    let mut reader = ReaderBuilder::new()
-        .delimiter(delimiter)
-        .trim(Trim::All)
-        .flexible(true)
-        .has_headers(true)
-        .from_reader(csv_content.as_bytes());
-
-    let headers = reader.headers().map_err(|e| e.to_string())?.clone();
-    let map = build_header_map(&headers);
-    let conn = open_db()?;
-
-    let mut imported = 0;
-    let mut skipped = 0;
-    let mut errors = Vec::new();
-
-    for (index, row) in reader.records().enumerate() {
-        let row_number = index + 2;
-        let record = match row {
-            Ok(record) => record,
-            Err(err) => {
-                skipped += 1;
-                errors.push(ImportError {
-                    row: row_number,
-                    message: format!("Linha inválida: {}", err),
-                    company: String::new(),
-                    email: String::new(),
-                });
-                continue;
-            }
-        };
-
-        if record.iter().all(|value| value.trim().is_empty()) {
-            skipped += 1;
-            continue;
-        }
-
-        let created_at_raw = read_csv_field(&record, &map, "created_at");
-        let updated_at_raw = read_csv_field(&record, &map, "updated_at");
-
-        let created_at = match parse_csv_datetime(&created_at_raw) {
-            Ok(value) => value,
-            Err(err) => {
-                skipped += 1;
-                errors.push(ImportError {
-                    row: row_number,
-                    message: format!("coluna Criado em inválida: {}", err),
-                    company: read_csv_field(&record, &map, "company"),
-                    email: read_csv_field(&record, &map, "email"),
-                });
-                continue;
-            }
-        };
-
-        let updated_at = match parse_csv_datetime(&updated_at_raw) {
-            Ok(value) => value,
-            Err(err) => {
-                skipped += 1;
-                errors.push(ImportError {
-                    row: row_number,
-                    message: format!("coluna Atualizado em inválida: {}", err),
-                    company: read_csv_field(&record, &map, "company"),
-                    email: read_csv_field(&record, &map, "email"),
-                });
-                continue;
-            }
-        };
-
-        let payload = LeadPayload {
-            company: read_csv_field(&record, &map, "company"),
-            contact_name: read_csv_field(&record, &map, "contact_name"),
-            job_title: read_csv_field(&record, &map, "job_title"),
-            email: read_csv_field(&record, &map, "email"),
-            phone: read_csv_field(&record, &map, "phone"),
-            stage: read_csv_field(&record, &map, "stage"),
-            linkedin: String::new(),
-            location: String::new(),
-            country: String::new(),
-            state: String::new(),
-            city: String::new(),
-            company_size: String::new(),
-            industry: String::new(),
-            interest: read_csv_field(&record, &map, "interest"),
-            notes: String::new(),
-            rating: None,
-            next_followup_at: None,
-        };
-
-        if let Err(err) = validate_payload(&payload) {
-            skipped += 1;
-            errors.push(ImportError {
-                row: row_number,
-                message: err,
-                company: payload.company.clone(),
-                email: payload.email.clone(),
-            });
-            continue;
-        }
-
-        if let Err(err) = upsert_lead_by_email(&conn, &payload, &created_at, &updated_at) {
-            skipped += 1;
-            errors.push(ImportError {
-                row: row_number,
-                message: err,
-                company: payload.company.clone(),
-                email: payload.email.clone(),
-            });
-            continue;
-        }
-
-        imported += 1;
-    }
-
-    Ok(ImportResult {
-        imported,
-        skipped,
-        errors,
-    })
+    run_import_csv(csv_content)
 }
 
 #[tauri::command]
@@ -1221,72 +984,169 @@ fn import_legacy_db() -> Result<bool, String> {
     Ok(false)
 }
 
-fn has_valid_backup_extension(path: &Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| {
-            let ext = ext.to_lowercase();
-            ext == "db" || ext == "sqlite" || ext == "sqlite3"
-        })
-        .unwrap_or(false)
-}
-
 #[tauri::command]
 fn backup_database(destination_path: String) -> Result<String, String> {
-    let source = app_db_path()?;
-    if !source.exists() {
-        return Err("Banco local não encontrado para backup.".into());
-    }
-
-    let destination = PathBuf::from(destination_path);
-    if !has_valid_backup_extension(&destination) {
-        return Err("Arquivo de backup inválido. Use extensão .db, .sqlite ou .sqlite3.".into());
-    }
-
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("Falha ao preparar diretório de backup: {err}"))?;
-    }
-
-    fs::copy(&source, &destination).map_err(|err| format!("Falha ao criar backup: {err}"))?;
-
-    Ok(destination.to_string_lossy().to_string())
+    run_backup_database(destination_path)
 }
 
 #[tauri::command]
 fn restore_database(backup_path: String) -> Result<RestoreDatabaseResult, String> {
-    let source = PathBuf::from(&backup_path);
-    if !source.exists() {
-        return Err("Arquivo de backup não encontrado.".into());
+    run_restore_database(backup_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_payload() -> LeadPayload {
+        LeadPayload {
+            company: "Empresa".into(),
+            contact_name: "Contato".into(),
+            job_title: "Cargo".into(),
+            email: "contato@empresa.com".into(),
+            phone: "(11)99999-9999".into(),
+            linkedin: String::new(),
+            location: String::new(),
+            country: String::new(),
+            state: String::new(),
+            city: String::new(),
+            company_size: String::new(),
+            industry: String::new(),
+            interest: String::new(),
+            stage: "Novo".into(),
+            notes: String::new(),
+            rating: Some(3),
+            next_followup_at: None,
+        }
     }
-    if !has_valid_backup_extension(&source) {
-        return Err("Arquivo inválido. Selecione um backup SQLite (.db/.sqlite/.sqlite3).".into());
+
+    #[test]
+    fn normalize_stage_handles_legacy_values() {
+        assert_eq!(
+            normalize_stage("apresentacao de portifolio feita"),
+            "Apresentação"
+        );
+        assert_eq!(normalize_stage("won"), "Ganho");
+        assert_eq!(normalize_stage("desconhecido"), "Novo");
     }
 
-    let metadata =
-        fs::metadata(&source).map_err(|err| format!("Falha ao ler metadados do backup: {err}"))?;
-    if metadata.len() < 1024 {
-        return Err("Arquivo de backup inválido: tamanho muito pequeno.".into());
+    #[test]
+    fn validate_payload_rejects_invalid_fields() {
+        let mut payload = sample_payload();
+        payload.email = "invalido".into();
+        assert!(validate_payload(&payload).is_err());
+
+        payload = sample_payload();
+        payload.rating = Some(10);
+        assert!(validate_payload(&payload).is_err());
     }
 
-    let target = app_db_path()?;
-    let now = Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let pre_restore_path = target
-        .parent()
-        .ok_or_else(|| "Diretório de dados inválido.".to_string())?
-        .join(format!("pre-restore-backup-{now}.db"));
-
-    if target.exists() {
-        fs::copy(&target, &pre_restore_path)
-            .map_err(|err| format!("Falha ao criar backup automático pré-restore: {err}"))?;
+    #[test]
+    fn parse_csv_datetime_accepts_common_variants_and_empty() {
+        assert_eq!(
+            parse_csv_datetime("01/12/2024 23:59").unwrap(),
+            Some("2024-12-01T23:59:00".into())
+        );
+        assert_eq!(
+            parse_csv_datetime("2024-12-01").unwrap(),
+            Some("2024-12-01T00:00:00".into())
+        );
+        assert_eq!(parse_csv_datetime("   ").unwrap(), None);
+        assert!(parse_csv_datetime("32/13/2024").is_err());
     }
 
-    fs::copy(&source, &target).map_err(|err| format!("Falha ao restaurar backup: {err}"))?;
+    #[test]
+    fn project_net_handles_boundary_values() {
+        assert_eq!(project_net(0.0, 10.0, 5.0), 0.0);
+        assert!((project_net(1000.0, 10.0, 5.0) - 855.0).abs() < f64::EPSILON);
+    }
 
-    Ok(RestoreDatabaseResult {
-        pre_restore_backup_path: pre_restore_path.to_string_lossy().to_string(),
-        restart_required: true,
-    })
+    #[test]
+    fn import_csv_mixed_rows_keeps_batch_and_reports_context() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        init_db(&conn).expect("init db");
+
+        let csv = "empresa,email,telefone,contato,status,criado em,atualizado em
+ACME,ok@acme.com,(11)99999-9999,Joao,Novo,01/12/2024 10:10,01/12/2024 10:10
+BadDate,bad-date@acme.com,(11)99999-9999,Ana,Novo,32/12/2024,01/12/2024 10:10
+BadEmail,invalido,(11)99999-9999,Caio,Novo,01/12/2024 10:10,01/12/2024 10:10
+";
+
+        let result = import_csv_with_conn(&conn, csv).expect("import result");
+        assert_eq!(result.imported, 1);
+        assert_eq!(result.skipped, 2);
+        assert_eq!(result.errors.len(), 2);
+
+        let date_error = result
+            .errors
+            .iter()
+            .find(|err| err.column.as_deref() == Some("created_at"))
+            .expect("date error");
+        assert_eq!(date_error.received_value.as_deref(), Some("32/12/2024"));
+        assert!(date_error
+            .message
+            .contains(ErrorTag::ImportInvalidDate.as_str()));
+    }
+
+    #[test]
+    fn restore_invalid_backup_has_stable_tag() {
+        let file_path = std::env::temp_dir().join(format!(
+            "leadflow-invalid-backup-{}.db",
+            Local::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::write(&file_path, b"not-a-sqlite-file").expect("write invalid backup");
+
+        let result = validate_sqlite_backup(&file_path);
+        assert!(result.is_err());
+        let message = result.err().unwrap_or_default();
+        assert!(message.contains("[RESTORE_INVALID_SQLITE]"));
+
+        let _ = fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn restore_copy_failure_triggers_rollback_path() {
+        let mut call_count = 0;
+        let source = Path::new("/tmp/source.db");
+        let target = Path::new("/tmp/target.db");
+        let pre_restore = Path::new("/tmp/pre.db");
+
+        let result = restore_with_rollback(source, target, pre_restore, |_from, _to| {
+            call_count += 1;
+            if call_count == 1 {
+                Err(std::io::Error::other("copy failed"))
+            } else {
+                Ok(1)
+            }
+        });
+
+        assert!(result.is_err());
+        let message = result.err().unwrap_or_default();
+        assert!(message.contains("[RESTORE_COPY_FAILED]"));
+        assert!(message.contains("Rollback automático aplicado"));
+        assert_eq!(call_count, 2);
+    }
+
+    #[test]
+    fn payload_summary_redacts_nested_sensitive_keys() {
+        let summary = crate::logging::build_payload_summary(&[(
+            "payload",
+            json!({
+                "company": "ACME",
+                "meta": {
+                    "contact_name": "Fulano",
+                    "email": "fulano@example.com",
+                    "safe_key": "valor-ok"
+                },
+                "items": [{ "notes": "segredo" }, { "status": "ok" }]
+            }),
+        )]);
+
+        assert!(summary.contains("[REDACTED]"));
+        assert!(!summary.contains("fulano@example.com"));
+        assert!(!summary.contains("Fulano"));
+        assert!(summary.contains("safe_key"));
+    }
 }
 
 fn main() {

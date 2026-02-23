@@ -192,6 +192,8 @@ export interface ImportError {
   message: string;
   company: string;
   email: string;
+  column?: string;
+  receivedValue?: string;
 }
 
 export interface ImportResult {

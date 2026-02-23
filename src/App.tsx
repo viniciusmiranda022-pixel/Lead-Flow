@@ -102,6 +102,17 @@ const isFollowupPending = (lead: Lead) => {
 };
 
 export function App() {
+  const getErrorDetails = (error: unknown, fallback: string) => {
+    if (error instanceof Error && "tag" in error) {
+      const tag = String((error as { tag?: unknown }).tag ?? "UNKNOWN");
+      return `${error.message} [${tag}]`;
+    }
+
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    return fallback;
+  };
+
   const [page, setPage] = useState<Page>("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -158,17 +169,25 @@ export function App() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const [leadRows, dashboardData, projectRows, collabRows, customerRows] =
+      const [leadRows, dashboardData, projectRows, collabRows] =
         await Promise.all([
           api.listLeads(),
           api.getDashboard(),
           api.listProjects(),
           api.listCollaborators(),
-          api.listCustomers(),
         ]);
-      const contactRows = await Promise.all(
-        customerRows.map(async (customer) => [customer.id, await api.listContactsByCustomer(customer.id)] as const),
-      );
+      let customerRows: Customer[] = [];
+      let contactRows: Array<readonly [number, Contact[]]> = [];
+
+      try {
+        customerRows = await api.listCustomers();
+        contactRows = await Promise.all(
+          customerRows.map(async (customer) => [customer.id, await api.listContactsByCustomer(customer.id)] as const),
+        );
+      } catch (error) {
+        setSettingsMessage({ type: "error", text: getErrorDetails(error, "Módulo de clientes indisponível.") });
+      }
+
       setLeads(leadRows);
       setDashboard(dashboardData);
       setProjects(projectRows.map((project) => ({ ...project, status: normalizeProjectStatus(project.status) })));
@@ -413,12 +432,7 @@ export function App() {
       setCsvImportResult(result);
       await refresh();
     } catch (error) {
-      const message =
-        typeof error === "string"
-          ? error
-          : error && typeof error === "object" && "message" in error
-            ? String((error as { message?: unknown }).message ?? "Falha ao importar CSV.")
-            : "Falha ao importar CSV.";
+      const message = getErrorDetails(error, "Falha ao importar CSV.");
 
       setCsvImportResult({
         imported: 0,
@@ -449,7 +463,7 @@ export function App() {
       const backupPath = await api.backupDatabase(destinationPath);
       setSettingsMessage({ type: "success", text: `Backup criado com sucesso em: ${backupPath}` });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao criar backup.";
+      const message = getErrorDetails(error, "Falha ao criar backup.");
       setSettingsMessage({ type: "error", text: message });
     } finally {
       setBackupLoading(false);
@@ -483,7 +497,7 @@ export function App() {
       setPendingRestorePath(null);
       await refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao restaurar backup.";
+      const message = getErrorDetails(error, "Falha ao restaurar backup.");
       setSettingsMessage({ type: "error", text: message });
     } finally {
       setRestoreLoading(false);
@@ -847,6 +861,8 @@ export function App() {
                       {csvImportResult.errors.map((item, index) => (
                         <li key={`${item.row}-${index}`}>
                           Linha {item.row || "?"}: {item.message}
+                          {item.column ? ` · coluna: ${item.column}` : ""}
+                          {item.receivedValue ? ` · valor: ${item.receivedValue}` : ""}
                           {item.email ? ` (${item.email})` : ""}
                         </li>
                       ))}
