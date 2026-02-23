@@ -82,3 +82,26 @@ describe('projectFinance calculations', () => {
     expect(indicacao?.total).toBeCloseTo(427.5, 6);
   });
 });
+
+
+describe('projectFinance edge cases', () => {
+  it('não quebra com percentuais estranhos e valores nulos', () => {
+    const weirdPayload: ProjectPayload = {
+      ...basePayload,
+      valor_bruto_servico: Number.NaN,
+      valor_bruto_comissao_licencas: Number.NaN,
+      valor_bruto_licencas: 0,
+      imposto_pct: 150,
+      fundo_pct: -10,
+      pct_fixo: -25,
+      pct_prevenda: 0,
+      pct_implantacao: 500,
+    };
+
+    const result = calcProjectFields(weirdPayload);
+    expect(Number.isFinite(result.totalLiquido)).toBe(true);
+
+    const commission = calcCommissionByCollaborator(weirdPayload, collaborators);
+    expect(Array.isArray(commission)).toBe(true);
+  });
+});

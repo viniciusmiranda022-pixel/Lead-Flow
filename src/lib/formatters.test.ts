@@ -21,4 +21,10 @@ describe('parsePtBrNumber (formatters)', () => {
     expect(parsePtBrNumber('1234')).toBe(1234);
     expect(parsePtBrNumber('1,5')).toBe(1.5);
   });
+
+  it('parseia entradas sujas mantendo compatibilidade pt-BR', () => {
+    expect(parsePtBrNumber('R$\t2.500,00***')).toBe(2500);
+    expect(parsePtBrNumber('  3 333,9abc')).toBe(3333.9);
+    expect(parsePtBrNumber('1.234.567,89')).toBe(1234567.89);
+  });
 });
