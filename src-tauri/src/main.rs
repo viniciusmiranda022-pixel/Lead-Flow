@@ -5,20 +5,14 @@ mod error_tags;
 mod import_csv;
 mod logging;
 
-use crate::backup_restore::{
-    restore_with_rollback, run_backup_database, run_restore_database, validate_sqlite_backup,
-};
-use crate::import_csv::{import_csv_with_conn, parse_csv_datetime, run_import_csv};
+use crate::backup_restore::{run_backup_database, run_restore_database};
+use crate::import_csv::run_import_csv;
 use chrono::Local;
 use dirs::{config_dir, data_dir};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 const STAGES: [&str; 6] = [
     "Novo",
@@ -997,6 +991,9 @@ fn restore_database(backup_path: String) -> Result<RestoreDatabaseResult, String
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backup_restore::{restore_with_rollback, validate_sqlite_backup};
+    use crate::import_csv::{import_csv_with_conn, parse_csv_datetime};
+    use std::path::Path;
 
     fn sample_payload() -> LeadPayload {
         LeadPayload {
