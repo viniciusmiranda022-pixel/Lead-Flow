@@ -179,7 +179,12 @@ pub(crate) fn run_restore_database(backup_path: String) -> Result<RestoreDatabas
             })?;
         }
 
-        restore_with_rollback(&source, &target, &pre_restore_path, fs::copy)?;
+        restore_with_rollback(
+            &source,
+            &target,
+            &pre_restore_path,
+            |from: &std::path::Path, to: &std::path::Path| std::fs::copy(from, to),
+        )?;
 
         Ok(RestoreDatabaseResult {
             pre_restore_backup_path: pre_restore_path.to_string_lossy().to_string(),
