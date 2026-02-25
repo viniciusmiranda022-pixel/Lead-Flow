@@ -14,11 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, fs, path::PathBuf};
 
- codex/refactor-leadflow-to-crm-structure-trluvh
 const STAGES: &[&str] = &[
-
-const STAGES: [&str; 7] = [
- main
     "Novo",
     "Contato",
     "Apresentação",
