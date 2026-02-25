@@ -168,7 +168,21 @@ export const api = {
     const groups = await listCompanyGroups();
     return groups.map((group) => {
       const first = group.leads[0];
-      return { id: group.id, name: group.name, notes: group.notes, created_at: first.created_at, updated_at: first.updated_at };
+      return {
+        id: group.id,
+        name: group.name,
+        phone: first.phone ?? '',
+        country: first.country?.trim() || 'Brasil',
+        state: first.state ?? '',
+        city: first.city ?? '',
+        size: first.company_size ?? '',
+        segment: first.industry ?? '',
+        segmentOther: (first as Lead & { segment_other?: string }).segment_other ?? '',
+        rating: first.rating ?? null,
+        notes: group.notes,
+        created_at: first.created_at,
+        updated_at: first.updated_at,
+      };
     });
   },
   createCustomer: async (payload: CustomerPayload) => {
@@ -177,22 +191,37 @@ export const api = {
       contact_name: 'Contato principal',
       job_title: '',
       email: `contato+${Date.now()}@empresa.local`,
-      phone: '+55 11 99999-0000',
+      phone: payload.phone?.trim() || '+55 11 99999-0000',
       linkedin: '',
       location: '',
-      country: '',
-      state: '',
-      city: '',
-      company_size: '',
-      industry: '',
+      country: payload.country?.trim() || 'Brasil',
+      state: payload.state?.trim() || '',
+      city: payload.city?.trim() || '',
+      company_size: payload.size?.trim() || '',
+      industry: payload.segment?.trim() || '',
       interest: 'Novo negócio',
       stage: 'Novo',
       notes: payload.notes?.trim() ?? '',
+      segment_other: payload.segment === 'Outros' ? (payload.segmentOther?.trim() || '') : '',
       next_followup_at: '',
-      rating: null,
+      rating: payload.rating ?? null,
     };
     const lead = await invokeWithDiagnostics<Lead>('create_lead', { payload: leadPayload });
-    return { id: lead.id, name: lead.company, notes: lead.notes, created_at: lead.created_at, updated_at: lead.updated_at };
+    return {
+      id: lead.id,
+      name: lead.company,
+      phone: lead.phone,
+      country: lead.country?.trim() || 'Brasil',
+      state: lead.state,
+      city: lead.city,
+      size: lead.company_size,
+      segment: lead.industry,
+      segmentOther: (lead as Lead & { segment_other?: string }).segment_other ?? '',
+      rating: lead.rating ?? null,
+      notes: lead.notes,
+      created_at: lead.created_at,
+      updated_at: lead.updated_at,
+    };
   },
   updateCustomer: async (id: number, payload: CustomerPayload) => {
     const groups = await listCompanyGroups();
@@ -202,11 +231,36 @@ export const api = {
     await Promise.all(
       group.leads.map((lead) => invokeWithDiagnostics<Lead>('update_lead', {
         id: lead.id,
-        payload: buildLeadPayload(lead, { company: payload.name.trim(), notes: payload.notes?.trim() ?? '' }),
+        payload: buildLeadPayload(lead, {
+          company: payload.name.trim(),
+          phone: payload.phone?.trim() || lead.phone || '+55 11 99999-0000',
+          country: payload.country?.trim() || 'Brasil',
+          state: payload.state?.trim() ?? '',
+          city: payload.city?.trim() ?? '',
+          company_size: payload.size?.trim() ?? '',
+          industry: payload.segment?.trim() ?? '',
+          segment_other: payload.segment === 'Outros' ? (payload.segmentOther?.trim() ?? '') : '',
+          notes: payload.notes?.trim() ?? '',
+          rating: payload.rating ?? null,
+        }),
       })),
     );
 
-    return { id, name: payload.name.trim(), notes: payload.notes ?? '', created_at: group.leads[0].created_at, updated_at: new Date().toISOString() };
+    return {
+      id,
+      name: payload.name.trim(),
+      phone: payload.phone?.trim() ?? group.leads[0].phone,
+      country: payload.country?.trim() || 'Brasil',
+      state: payload.state?.trim() ?? '',
+      city: payload.city?.trim() ?? '',
+      size: payload.size?.trim() ?? '',
+      segment: payload.segment?.trim() ?? '',
+      segmentOther: payload.segment === 'Outros' ? (payload.segmentOther?.trim() ?? '') : '',
+      rating: payload.rating ?? null,
+      notes: payload.notes ?? '',
+      created_at: group.leads[0].created_at,
+      updated_at: new Date().toISOString(),
+    };
   },
   deleteCustomer: async (id: number) => {
     const groups = await listCompanyGroups();

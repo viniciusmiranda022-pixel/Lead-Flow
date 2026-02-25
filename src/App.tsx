@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
+import locationsData from "./data/locations.json";
 import leadflowIcon from "./assets/brand/leadflow-icon.svg";
 import leadflowWordmark from "./assets/brand/leadflow-wordmark.svg";
 import { ConfirmDialog } from "./components/ConfirmDialog";
@@ -73,6 +74,29 @@ import {
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const DASHBOARD_STATUS_BUCKETS = [...OPPORTUNITY_STAGES, "Pausado", "Ganho", "Perdido"] as const;
+
+const COMPANY_SIZE_OPTIONS = ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"];
+const SEGMENT_OPTIONS = [
+  "Tecnologia",
+  "Serviços financeiros (Bancos/Fintech)",
+  "Seguros",
+  "Varejo",
+  "Indústria/Manufatura",
+  "Saúde/Hospitais",
+  "Educação",
+  "Governo/Setor público",
+  "Energia/Óleo e gás",
+  "Agronegócio",
+  "Logística/Transporte",
+  "Telecom",
+  "Construção/Imobiliário",
+  "Serviços/Consultoria",
+  "Hotelaria/Turismo",
+  "Outros",
+];
+
+type CountryDataset = { code: string; name: string; states: Array<{ code: string; name: string; cities: string[] }> };
+const COUNTRIES = (locationsData as { countries: CountryDataset[] }).countries;
 
 type Page =
   | "Dashboard"
@@ -161,7 +185,7 @@ export function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [customerPayload, setCustomerPayload] = useState<CustomerPayload>({ name: "", notes: "" });
+  const [customerPayload, setCustomerPayload] = useState<CustomerPayload>({ name: "", phone: "", country: "Brasil", state: "", city: "", size: "", segment: "", segmentOther: "", rating: null, notes: "" });
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -383,6 +407,19 @@ export function App() {
     () => (selectedCustomer ? contactsByCustomer[selectedCustomer.id] ?? [] : []),
     [contactsByCustomer, selectedCustomer],
   );
+  const selectedCountry = useMemo(
+    () => COUNTRIES.find((country) => country.name === (customerPayload.country || "Brasil")),
+    [customerPayload.country],
+  );
+  const availableStates = selectedCountry?.states ?? [];
+  const selectedState = useMemo(
+    () => availableStates.find((state) => state.name === (customerPayload.state ?? "")),
+    [availableStates, customerPayload.state],
+  );
+  const availableCities = selectedState?.cities ?? [];
+  const supportsStates = availableStates.length > 0;
+  const supportsCities = availableCities.length > 0;
+
   const selectedCustomerOpportunities = useMemo(() => {
     if (!selectedCustomer) return [];
 
@@ -415,14 +452,14 @@ export function App() {
 
   const openCreateCustomerModal = () => {
     setEditingCustomer(null);
-    setCustomerPayload({ name: "", notes: "" });
+    setCustomerPayload({ name: "", phone: "", country: "Brasil", state: "", city: "", size: "", segment: "", segmentOther: "", rating: null, notes: "" });
     setCustomerError(null);
     setCustomerModalOpen(true);
   };
 
   const openEditCustomerModal = (customer: Customer) => {
     setEditingCustomer(customer);
-    setCustomerPayload({ name: customer.name, notes: customer.notes });
+    setCustomerPayload({ name: customer.name, phone: customer.phone, country: customer.country || "Brasil", state: customer.state, city: customer.city, size: customer.size, segment: customer.segment, segmentOther: customer.segmentOther, rating: customer.rating, notes: customer.notes });
     setCustomerError(null);
     setCustomerModalOpen(true);
   };
@@ -1116,7 +1153,6 @@ export function App() {
                         const contactsCount = (contactsByCustomer[customer.id] ?? []).length;
                         const companyLeads = leads.filter((lead) => lead.company.trim().toLowerCase() === customer.name.trim().toLowerCase());
                         const openOpps = companyLeads.filter((lead) => !["Ganho", "Perdido"].includes(lead.stage)).length;
-                        const sampleLead = companyLeads[0];
                         return (
                           <button
                             key={customer.id}
@@ -1129,8 +1165,8 @@ export function App() {
                             }`}
                           >
                             <p className="font-semibold text-slate-900">{customer.name}</p>
-                            <p className="mt-1 line-clamp-1 text-xs text-slate-600">{[sampleLead?.city, sampleLead?.state].filter(Boolean).join("/") || "Local não informado"}</p>
-                            <p className="mt-2 text-xs text-slate-500">{contactsCount} contato(s) · {openOpps} oportunidade(s) aberta(s){sampleLead?.rating ? ` · ⭐ ${sampleLead.rating}` : ""}</p>
+                            <p className="mt-1 line-clamp-1 text-xs text-slate-600">{[customer.city, customer.state, customer.country].filter(Boolean).join(" / ") || "Local não informado"}</p>
+                            <p className="mt-2 text-xs text-slate-500">{contactsCount} contato(s) · {openOpps} oportunidade(s) aberta(s){customer.rating ? ` · ⭐ ${customer.rating}` : ""}</p>
                           </button>
                         );
                       })
@@ -1152,9 +1188,9 @@ export function App() {
                         <div>
                           <h2 className="text-lg font-semibold text-slate-900">{selectedCustomer.name}</h2>
                           <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                            {selectedCustomerOpportunities[0]?.rating ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">⭐ {selectedCustomerOpportunities[0]?.rating}</span> : null}
-                            {selectedCustomerOpportunities[0]?.industry ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomerOpportunities[0]?.industry}</span> : null}
-                            {selectedCustomerOpportunities[0]?.company_size ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomerOpportunities[0]?.company_size}</span> : null}
+                            {selectedCustomer.rating ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">⭐ {selectedCustomer.rating}</span> : null}
+                            {selectedCustomer.segment ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomer.segment === "Outros" ? selectedCustomer.segmentOther || "Outros" : selectedCustomer.segment}</span> : null}
+                            {selectedCustomer.size ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomer.size}</span> : null}
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1190,17 +1226,14 @@ export function App() {
 
                       <section className="space-y-2">
                         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Visão geral</h3>
-                        {(() => { const companyLead = selectedCustomerOpportunities[0]; return (
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                           <p><span className="font-medium text-slate-900">Nome:</span> {selectedCustomer.name}</p>
-                          <p><span className="font-medium text-slate-900">Telefone:</span> {companyLead?.phone || "-"}</p>
-                          <p><span className="font-medium text-slate-900">País/Estado/Cidade:</span> {[companyLead?.country, companyLead?.state, companyLead?.city].filter(Boolean).join(" / ") || "-"}</p>
-                          <p><span className="font-medium text-slate-900">Tamanho:</span> {companyLead?.company_size || "-"} · <span className="font-medium text-slate-900">Segmento:</span> {companyLead?.industry || "-"}</p>
-                          <p><span className="font-medium text-slate-900">Rating:</span> {companyLead?.rating ? `⭐ ${companyLead.rating}` : "-"}</p>
-                          <p><span className="font-medium text-slate-900">Domínio/CNPJ:</span> -</p>
+                          <p><span className="font-medium text-slate-900">Telefone:</span> {selectedCustomer.phone || "-"}</p>
+                          <p><span className="font-medium text-slate-900">País/Estado/Cidade:</span> {[selectedCustomer.country, selectedCustomer.state, selectedCustomer.city].filter(Boolean).join(" / ") || "-"}</p>
+                          <p><span className="font-medium text-slate-900">Tamanho:</span> {selectedCustomer.size || "-"} · <span className="font-medium text-slate-900">Segmento:</span> {selectedCustomer.segment === "Outros" ? selectedCustomer.segmentOther || "Outros" : selectedCustomer.segment || "-"}</p>
+                          <p><span className="font-medium text-slate-900">Rating:</span> {selectedCustomer.rating ? `⭐ ${selectedCustomer.rating}` : "Sem rating"}</p>
                           <p className="mt-2"><span className="font-medium text-slate-900">Observações:</span> {selectedCustomer.notes || "Sem observações cadastradas."}</p>
                         </div>
-                        ); })()}
                       </section>
 
                       <section className="space-y-2">
@@ -1647,25 +1680,65 @@ export function App() {
             <div className="lf-modal-body space-y-3">
               <label className="space-y-1 text-xs font-medium text-slate-600">
                 Nome da empresa
-                <input
-                  className="lf-input"
-                  placeholder="Ex.: ACME Corp"
-                  value={customerPayload.name}
-                  onChange={(event) => {
-                    setCustomerPayload((prev) => ({ ...prev, name: event.target.value }));
-                    setCustomerError(null);
-                  }}
-                />
+                <input className="lf-input" placeholder="Ex.: ACME Corp" value={customerPayload.name} onChange={(event) => { setCustomerPayload((prev) => ({ ...prev, name: event.target.value })); setCustomerError(null); }} />
                 {customerError ? <p className="error-text">{customerError}</p> : null}
               </label>
-              <label className="space-y-1 text-xs font-medium text-slate-600">
-                Observações
-                <textarea
-                  className="lf-input min-h-24"
-                  placeholder="Contexto, responsáveis e pontos importantes"
-                  value={customerPayload.notes ?? ""}
-                  onChange={(event) => setCustomerPayload((prev) => ({ ...prev, notes: event.target.value }))}
-                />
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium text-slate-600">Telefone
+                  <input className="lf-input" value={customerPayload.phone ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, phone: event.target.value }))} />
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-600">Rating
+                  <select className="lf-input" value={customerPayload.rating ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, rating: event.target.value ? Number(event.target.value) : null }))}>
+                    <option value="">Sem rating</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-1 text-xs font-medium text-slate-600">País
+                  <select className="lf-input" value={customerPayload.country ?? "Brasil"} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, country: event.target.value, state: "", city: "" }))}>
+                    {COUNTRIES.map((country) => <option key={country.code} value={country.name}>{country.name}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-600">Estado
+                  {supportsStates ? (
+                    <select className="lf-input" disabled={!customerPayload.country} value={customerPayload.state ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, state: event.target.value, city: "" }))}>
+                      <option value="">Selecione</option>
+                      {availableStates.map((state) => <option key={state.code} value={state.name}>{state.name}</option>)}
+                    </select>
+                  ) : (
+                    <input className="lf-input" disabled={!customerPayload.country} placeholder="Digite o estado/região" value={customerPayload.state ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, state: event.target.value, city: "" }))} />
+                  )}
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-600">Cidade
+                  {supportsCities ? (
+                    <>
+                      <input className="lf-input" disabled={!customerPayload.state} list="customer-city-options" placeholder="Busque ou selecione a cidade" value={customerPayload.city ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, city: event.target.value }))} />
+                      <datalist id="customer-city-options">{availableCities.map((city) => <option key={city} value={city} />)}</datalist>
+                    </>
+                  ) : (
+                    <input className="lf-input" disabled={!customerPayload.state && supportsStates} placeholder="Digite a cidade" value={customerPayload.city ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, city: event.target.value }))} />
+                  )}
+                </label>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium text-slate-600">Tamanho da empresa
+                  <select className="lf-input" value={customerPayload.size ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, size: event.target.value }))}>
+                    <option value="">Selecione</option>{COMPANY_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-600">Segmento
+                  <select className="lf-input" value={customerPayload.segment ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, segment: event.target.value, segmentOther: event.target.value === "Outros" ? prev.segmentOther : "" }))}>
+                    <option value="">Selecione</option>{SEGMENT_OPTIONS.map((segment) => <option key={segment} value={segment}>{segment}</option>)}
+                  </select>
+                </label>
+              </div>
+              {customerPayload.segment === "Outros" ? (
+                <label className="space-y-1 text-xs font-medium text-slate-600">Segmento (descreva)
+                  <input className="lf-input" value={customerPayload.segmentOther ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, segmentOther: event.target.value }))} />
+                </label>
+              ) : null}
+              <label className="space-y-1 text-xs font-medium text-slate-600">Observações
+                <textarea className="lf-input min-h-24" placeholder="Contexto, responsáveis e pontos importantes" value={customerPayload.notes ?? ""} onChange={(event) => setCustomerPayload((prev) => ({ ...prev, notes: event.target.value }))} />
               </label>
             </div>
             <div className="lf-modal-footer">
@@ -1676,6 +1749,18 @@ export function App() {
                     setCustomerError("Informe o nome da empresa.");
                     return;
                   }
+                  if (!customerPayload.size?.trim()) {
+                    setCustomerError("Selecione o tamanho da empresa.");
+                    return;
+                  }
+                  if (!customerPayload.segment?.trim()) {
+                    setCustomerError("Selecione o segmento da empresa.");
+                    return;
+                  }
+                  if (customerPayload.segment === "Outros" && !customerPayload.segmentOther?.trim()) {
+                    setCustomerError("Descreva o segmento quando selecionar Outros.");
+                    return;
+                  }
 
                   try {
                     if (editingCustomer) await api.updateCustomer(editingCustomer.id, customerPayload);
@@ -1683,7 +1768,7 @@ export function App() {
 
                     setCustomerModalOpen(false);
                     setEditingCustomer(null);
-                    setCustomerPayload({ name: "", notes: "" });
+                    setCustomerPayload({ name: "", phone: "", country: "Brasil", state: "", city: "", size: "", segment: "", segmentOther: "", rating: null, notes: "" });
                     setCrmFeedback({
                       type: "success",
                       text: editingCustomer ? "Empresa atualizada com sucesso." : "Empresa criada com sucesso.",

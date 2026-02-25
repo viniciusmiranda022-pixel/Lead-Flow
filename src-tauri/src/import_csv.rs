@@ -275,6 +275,7 @@ pub(crate) fn import_csv_with_conn(
             city: String::new(),
             company_size: String::new(),
             industry: String::new(),
+            segment_other: String::new(),
             interest: read_csv_field(&record, &map, "interest"),
             notes: String::new(),
             rating: None,

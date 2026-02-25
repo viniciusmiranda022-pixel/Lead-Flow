@@ -98,6 +98,7 @@ export interface Lead {
   city: string;
   company_size: string;
   industry: string;
+  segment_other?: string;
   interest: string;
   stage: Stage;
   notes: string;
@@ -132,6 +133,14 @@ export interface CollaboratorPayload {
 export interface Customer {
   id: number;
   name: string;
+  phone: string;
+  country: string;
+  state: string;
+  city: string;
+  size: string;
+  segment: string;
+  segmentOther: string;
+  rating: number | null;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -139,6 +148,14 @@ export interface Customer {
 
 export interface CustomerPayload {
   name: string;
+  phone?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  size?: string;
+  segment?: string;
+  segmentOther?: string;
+  rating?: number | null;
   notes?: string;
 }
 
