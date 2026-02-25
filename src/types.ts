@@ -148,6 +148,7 @@ export interface Contact {
   name: string;
   email: string;
   phone: string;
+  linkedin: string;
   job_title: string;
   notes: string;
   created_at: string;
@@ -159,6 +160,7 @@ export interface ContactPayload {
   name: string;
   email?: string;
   phone?: string;
+  linkedin?: string;
   job_title?: string;
   notes?: string;
 }

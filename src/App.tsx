@@ -34,7 +34,6 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
 import leadflowIcon from "./assets/brand/leadflow-icon.svg";
 import leadflowWordmark from "./assets/brand/leadflow-wordmark.svg";
-import { Badge } from "./components/Badge";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { FiltersBar } from "./components/FiltersBar";
 import { LeadCard } from "./components/LeadCard";
@@ -166,7 +165,8 @@ export function App() {
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
-  const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" });
+  const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", linkedin: "", job_title: "", notes: "" });
+  const [primaryContactByCustomer, setPrimaryContactByCustomer] = useState<Record<number, number>>({});
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
   const [crmFeedback, setCrmFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -435,6 +435,7 @@ export function App() {
       email: "",
       phone: "",
       job_title: "",
+      linkedin: "",
       notes: "",
     });
     setContactError(null);
@@ -449,11 +450,33 @@ export function App() {
       email: contact.email,
       phone: contact.phone,
       job_title: contact.job_title,
+      linkedin: contact.linkedin ?? "",
       notes: contact.notes,
     });
     setContactError(null);
     setContactModalOpen(true);
   };
+
+  const toLeadPayload = (lead: Lead, overrides: Partial<LeadPayload> = {}): LeadPayload => ({
+    company: lead.company,
+    contact_name: lead.contact_name,
+    job_title: lead.job_title,
+    email: lead.email,
+    phone: lead.phone,
+    linkedin: lead.linkedin,
+    location: lead.location,
+    country: lead.country,
+    state: lead.state,
+    city: lead.city,
+    company_size: lead.company_size,
+    industry: lead.industry,
+    interest: lead.interest,
+    stage: lead.stage,
+    notes: lead.notes,
+    rating: lead.rating,
+    next_followup_at: lead.next_followup_at ?? "",
+    ...overrides,
+  });
 
   const statusChartData = DASHBOARD_STATUS_BUCKETS.map((stage) => ({
     stage,
@@ -547,25 +570,43 @@ export function App() {
   const handleDownloadCsvTemplate = (withExample = false) => {
     const headers = [
       "empresa",
+      "cnpj",
+      "dominio",
+      "pais",
+      "estado",
+      "cidade",
+      "tamanho",
+      "segmento",
+      "rating",
       "contato",
       "cargo",
       "email",
       "telefone",
+      "linkedin",
       "interesse",
       "status",
-      "criado_em",
-      "atualizado_em",
+      "proximo_followup",
+      "observacoes",
     ];
     const exampleRow = [
       "ACME LTDA",
+      "12.345.678/0001-90",
+      "acme.com.br",
+      "Brasil",
+      "SP",
+      "Campinas",
+      "51-200",
+      "Tecnologia",
+      "4",
       "Maria Souza",
       "Head de Compras",
       "maria.souza@acme.com",
       "+55 11 99999-0000",
+      "linkedin.com/in/mariasouza",
       "Automação de CRM",
       "Novo",
       "2025-01-10",
-      "2025-01-10",
+      "Primeiro contato vindo de importação",
     ];
     const rows = [headers, ...(withExample ? [exampleRow] : [])];
     const csv = `\uFEFF${rows.map((row) => row.join(";")).join("\n")}`;
@@ -573,7 +614,7 @@ export function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "leadflow_leads_template.csv";
+    link.download = "leadflow_empresas_contatos_template.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -955,64 +996,8 @@ export function App() {
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-xl font-semibold text-slate-900">Funil de Oportunidades</h1>
-                <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={(event) => {
-                      handleCsvFile(event.target.files?.[0]);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload size={16} /> Importar CSV
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleDownloadCsvTemplate(false)}
-                  >
-                    <Download size={16} /> Baixar modelo CSV
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleDownloadCsvTemplate(true)}
-                  >
-                    <Download size={16} /> Baixar modelo CSV (com exemplo)
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setEditingLead(undefined);
-                      setModalOpen(true);
-                    }}
-                  >
-                    <Plus size={16} />
-                    Novo Lead
-                  </Button>
-                </div>
+                <p className="text-sm text-slate-600">Foco em execução e avanço das oportunidades já cadastradas.</p>
               </div>
-              {csvImportResult ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  <p className="font-semibold text-slate-900">Resumo da importação</p>
-                  <p>Importados: {csvImportResult.imported} · Ignorados: {csvImportResult.skipped} · Erros: {csvImportResult.errors.length}</p>
-                  {csvImportResult.errors.length > 0 ? (
-                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-5 text-xs text-rose-700">
-                      {csvImportResult.errors.map((item, index) => (
-                        <li key={`${item.row}-${index}`}>
-                          Linha {item.row || "?"}: {item.message}
-                          {item.column ? ` · coluna: ${item.column}` : ""}
-                          {item.receivedValue ? ` · valor: ${item.receivedValue}` : ""}
-                          {item.email ? ` (${item.email})` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ) : null}
               <FiltersBar
                 search={filter.search}
                 status={filter.status}
@@ -1056,10 +1041,28 @@ export function App() {
                   <h1 className="text-xl font-semibold">Empresas</h1>
                   <p className="text-sm text-slate-600">Gestão operacional de contas, contatos e oportunidades.</p>
                 </div>
-                <Button onClick={openCreateCustomerModal}>
-                  <Plus size={16} />
-                  Nova empresa
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(event) => {
+                      handleCsvFile(event.target.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                    <Upload size={16} /> Importar CSV
+                  </Button>
+                  <Button variant="secondary" onClick={() => handleDownloadCsvTemplate(true)}>
+                    <Download size={16} /> Baixar modelo CSV
+                  </Button>
+                  <Button onClick={openCreateCustomerModal}>
+                    <Plus size={16} />
+                    Nova empresa
+                  </Button>
+                </div>
               </div>
 
               {crmFeedback ? (
@@ -1071,6 +1074,25 @@ export function App() {
                   }`}
                 >
                   {crmFeedback.text}
+                </div>
+              ) : null}
+
+              {csvImportResult ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                  <p className="font-semibold text-slate-900">Resumo da importação (Empresas)</p>
+                  <p>Importados: {csvImportResult.imported} · Ignorados: {csvImportResult.skipped} · Erros: {csvImportResult.errors.length}</p>
+                  {csvImportResult.errors.length > 0 ? (
+                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-5 text-xs text-rose-700">
+                      {csvImportResult.errors.map((item, index) => (
+                        <li key={`${item.row}-${index}`}>
+                          Linha {item.row || "?"}: {item.message}
+                          {item.column ? ` · coluna: ${item.column}` : ""}
+                          {item.receivedValue ? ` · valor: ${item.receivedValue}` : ""}
+                          {item.email ? ` (${item.email})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1092,6 +1114,9 @@ export function App() {
                       filteredCustomers.map((customer) => {
                         const isSelected = customer.id === selectedCustomerId;
                         const contactsCount = (contactsByCustomer[customer.id] ?? []).length;
+                        const companyLeads = leads.filter((lead) => lead.company.trim().toLowerCase() === customer.name.trim().toLowerCase());
+                        const openOpps = companyLeads.filter((lead) => !["Ganho", "Perdido"].includes(lead.stage)).length;
+                        const sampleLead = companyLeads[0];
                         return (
                           <button
                             key={customer.id}
@@ -1104,8 +1129,8 @@ export function App() {
                             }`}
                           >
                             <p className="font-semibold text-slate-900">{customer.name}</p>
-                            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{customer.notes || "Sem observações"}</p>
-                            <p className="mt-2 text-xs text-slate-500">{contactsCount} contato(s)</p>
+                            <p className="mt-1 line-clamp-1 text-xs text-slate-600">{[sampleLead?.city, sampleLead?.state].filter(Boolean).join("/") || "Local não informado"}</p>
+                            <p className="mt-2 text-xs text-slate-500">{contactsCount} contato(s) · {openOpps} oportunidade(s) aberta(s){sampleLead?.rating ? ` · ⭐ ${sampleLead.rating}` : ""}</p>
                           </button>
                         );
                       })
@@ -1126,7 +1151,11 @@ export function App() {
                       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
                         <div>
                           <h2 className="text-lg font-semibold text-slate-900">{selectedCustomer.name}</h2>
-                          <p className="text-sm text-slate-500">Empresa selecionada</p>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                            {selectedCustomerOpportunities[0]?.rating ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">⭐ {selectedCustomerOpportunities[0]?.rating}</span> : null}
+                            {selectedCustomerOpportunities[0]?.industry ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomerOpportunities[0]?.industry}</span> : null}
+                            {selectedCustomerOpportunities[0]?.company_size ? <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{selectedCustomerOpportunities[0]?.company_size}</span> : null}
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button variant="secondary" onClick={() => openEditCustomerModal(selectedCustomer)}>Editar</Button>
@@ -1161,10 +1190,17 @@ export function App() {
 
                       <section className="space-y-2">
                         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Visão geral</h3>
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <p className="text-sm text-slate-700"><span className="font-medium text-slate-900">Empresa:</span> {selectedCustomer.name}</p>
-                          <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">Observações:</span> {selectedCustomer.notes || "Sem observações cadastradas."}</p>
+                        {(() => { const companyLead = selectedCustomerOpportunities[0]; return (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                          <p><span className="font-medium text-slate-900">Nome:</span> {selectedCustomer.name}</p>
+                          <p><span className="font-medium text-slate-900">Telefone:</span> {companyLead?.phone || "-"}</p>
+                          <p><span className="font-medium text-slate-900">País/Estado/Cidade:</span> {[companyLead?.country, companyLead?.state, companyLead?.city].filter(Boolean).join(" / ") || "-"}</p>
+                          <p><span className="font-medium text-slate-900">Tamanho:</span> {companyLead?.company_size || "-"} · <span className="font-medium text-slate-900">Segmento:</span> {companyLead?.industry || "-"}</p>
+                          <p><span className="font-medium text-slate-900">Rating:</span> {companyLead?.rating ? `⭐ ${companyLead.rating}` : "-"}</p>
+                          <p><span className="font-medium text-slate-900">Domínio/CNPJ:</span> -</p>
+                          <p className="mt-2"><span className="font-medium text-slate-900">Observações:</span> {selectedCustomer.notes || "Sem observações cadastradas."}</p>
                         </div>
+                        ); })()}
                       </section>
 
                       <section className="space-y-2">
@@ -1182,11 +1218,14 @@ export function App() {
                                   <div>
                                     <p className="font-medium text-slate-900">{contact.name}</p>
                                     <p className="text-sm text-slate-600">
-                                      {[contact.job_title, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sem dados adicionais"}
+                                      {[contact.job_title, contact.email, contact.phone, contact.linkedin].filter(Boolean).join(" · ") || "Sem dados adicionais"}
                                     </p>
                                   </div>
                                   <div className="flex gap-2">
                                     <Button variant="ghost" className="h-8" onClick={() => openEditContactModal(contact)}>Editar</Button>
+                                    <Button variant="secondary" className="h-8" onClick={() => setPrimaryContactByCustomer((prev) => ({ ...prev, [selectedCustomer.id]: contact.id }))}>
+                                      {primaryContactByCustomer[selectedCustomer.id] === contact.id ? "Principal" : "Marcar principal"}
+                                    </Button>
                                     <Button
                                       variant="danger"
                                       className="h-8"
@@ -1230,6 +1269,14 @@ export function App() {
                                   </div>
                                   <p className="mt-1 text-slate-600">Etapa: {axes.etapa} · Resultado: {axes.resultado}</p>
                                   <p className="mt-1 text-slate-500">Próximo follow-up: {lead.next_followup_at || "Não definido"}</p>
+                                  <p className="mt-1 line-clamp-1 text-slate-500">Obs.: {lead.notes || "-"}</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <Button variant="ghost" className="h-8" onClick={() => { setEditingLead(lead); setModalOpen(true); }}>Abrir/editar</Button>
+                                    <Button variant="ghost" className="h-8" onClick={async () => { const next = window.prompt('Nova data de follow-up (YYYY-MM-DD):', lead.next_followup_at ?? ''); if (!next) return; await api.updateLead(lead.id, toLeadPayload(lead, { next_followup_at: next })); await refresh(); }}>Reagendar follow-up</Button>
+                                    <Button variant="ghost" className="h-8" onClick={async () => { await updateStage(lead, lead.stage === 'Pausado' ? 'Contato' : 'Pausado'); }}>Pausar/reativar</Button>
+                                    <Button variant="ghost" className="h-8" onClick={async () => { await updateStage(lead, 'Ganho'); }}>Marcar ganha</Button>
+                                    <Button variant="ghost" className="h-8" onClick={async () => { await updateStage(lead, 'Perdido'); }}>Marcar perdida</Button>
+                                  </div>
                                 </div>
                               );
                             })
@@ -1706,6 +1753,10 @@ export function App() {
                 Cargo
                 <input className="lf-input" value={contactPayload.job_title ?? ""} onChange={(event) => setContactPayload((prev) => ({ ...prev, job_title: event.target.value }))} />
               </label>
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                LinkedIn
+                <input className="lf-input" value={contactPayload.linkedin ?? ""} onChange={(event) => setContactPayload((prev) => ({ ...prev, linkedin: event.target.value }))} />
+              </label>
             </div>
             <div className="lf-modal-footer">
               <Button variant="secondary" onClick={() => setContactModalOpen(false)}>Cancelar</Button>
@@ -1726,7 +1777,7 @@ export function App() {
 
                     setContactModalOpen(false);
                     setEditingContact(null);
-                    setContactPayload({ customer_id: selectedCustomerId ?? 0, name: "", email: "", phone: "", job_title: "", notes: "" });
+                    setContactPayload({ customer_id: selectedCustomerId ?? 0, name: "", email: "", phone: "", linkedin: "", job_title: "", notes: "" });
                     setCrmFeedback({
                       type: "success",
                       text: editingContact ? "Contato atualizado com sucesso." : "Contato criado com sucesso.",
