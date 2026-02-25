@@ -21,6 +21,7 @@ import {
   Plus,
   Settings,
   TriangleAlert,
+  Download,
   Upload,
   UserRoundCheck,
   UserRoundX,
@@ -449,6 +450,42 @@ export function App() {
     }
   };
 
+  const handleDownloadCsvTemplate = (withExample = false) => {
+    const headers = [
+      "empresa",
+      "contato",
+      "cargo",
+      "email",
+      "telefone",
+      "interesse",
+      "status",
+      "criado_em",
+      "atualizado_em",
+    ];
+    const exampleRow = [
+      "ACME LTDA",
+      "Maria Souza",
+      "Head de Compras",
+      "maria.souza@acme.com",
+      "+55 11 99999-0000",
+      "Automação de CRM",
+      "Novo",
+      "2025-01-10",
+      "2025-01-10",
+    ];
+    const rows = [headers, ...(withExample ? [exampleRow] : [])];
+    const csv = `\uFEFF${rows.map((row) => row.join(";")).join("\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "leadflow_leads_template.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleCreateBackup = async () => {
     setSettingsMessage(null);
     const destinationPath = await save({
@@ -840,6 +877,18 @@ export function App() {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload size={16} /> Importar CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleDownloadCsvTemplate(false)}
+                  >
+                    <Download size={16} /> Baixar modelo CSV
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleDownloadCsvTemplate(true)}
+                  >
+                    <Download size={16} /> Baixar modelo CSV (com exemplo)
                   </Button>
                   <Button
                     onClick={() => {
