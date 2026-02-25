@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   Menu,
   Plus,
+  Search,
   Settings,
   TriangleAlert,
   Download,
@@ -158,10 +159,17 @@ export function App() {
   });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contactsByCustomer, setContactsByCustomer] = useState<Record<number, Contact[]>>({});
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerPayload, setCustomerPayload] = useState<CustomerPayload>({ name: "", notes: "" });
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [contactPayload, setContactPayload] = useState<ContactPayload>({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" });
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [crmFeedback, setCrmFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [commissionFilter, setCommissionFilter] = useState<"Aprovado+Faturado" | "Aprovado" | "Faturado">("Aprovado+Faturado");
   const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [csvImportResult, setCsvImportResult] = useState<ImportResult | null>(null);
@@ -198,6 +206,11 @@ export function App() {
       setCollaborators(collabRows);
       setCustomers(customerRows);
       setContactsByCustomer(Object.fromEntries(contactRows));
+      setSelectedCustomerId((current) => {
+        if (!customerRows.length) return null;
+        if (current && customerRows.some((customer) => customer.id === current)) return current;
+        return customerRows[0].id;
+      });
     } finally {
       setLoading(false);
     }
@@ -346,6 +359,41 @@ export function App() {
       );
   }, [projects, leads, projectFilter]);
 
+  const filteredCustomers = useMemo(() => {
+    const normalized = customerSearch.trim().toLowerCase();
+    if (!normalized) return customers;
+
+    return customers.filter((customer) => {
+      const contactsText = (contactsByCustomer[customer.id] ?? [])
+        .map((contact) => [contact.name, contact.email, contact.phone].join(" "))
+        .join(" ");
+
+      return [customer.name, customer.notes, contactsText]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized);
+    });
+  }, [customers, contactsByCustomer, customerSearch]);
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  );
+  const selectedCustomerContacts = useMemo(
+    () => (selectedCustomer ? contactsByCustomer[selectedCustomer.id] ?? [] : []),
+    [contactsByCustomer, selectedCustomer],
+  );
+  const selectedCustomerOpportunities = useMemo(() => {
+    if (!selectedCustomer) return [];
+
+    return leads
+      .filter((lead) =>
+        lead.customer_id === selectedCustomer.id
+        || lead.company.trim().toLowerCase() === selectedCustomer.name.trim().toLowerCase(),
+      )
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  }, [leads, selectedCustomer]);
+
   useEffect(() => {
     if (pendingFollowups.length > 0) setShowFollowupToast(true);
   }, [pendingFollowups.length]);
@@ -364,6 +412,49 @@ export function App() {
     await api.updateStage(lead.id, stage);
     await refresh();
   };
+
+  const openCreateCustomerModal = () => {
+    setEditingCustomer(null);
+    setCustomerPayload({ name: "", notes: "" });
+    setCustomerError(null);
+    setCustomerModalOpen(true);
+  };
+
+  const openEditCustomerModal = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setCustomerPayload({ name: customer.name, notes: customer.notes });
+    setCustomerError(null);
+    setCustomerModalOpen(true);
+  };
+
+  const openCreateContactModal = (customerId?: number) => {
+    setEditingContact(null);
+    setContactPayload({
+      customer_id: customerId ?? selectedCustomerId ?? 0,
+      name: "",
+      email: "",
+      phone: "",
+      job_title: "",
+      notes: "",
+    });
+    setContactError(null);
+    setContactModalOpen(true);
+  };
+
+  const openEditContactModal = (contact: Contact) => {
+    setEditingContact(contact);
+    setContactPayload({
+      customer_id: contact.customer_id,
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      job_title: contact.job_title,
+      notes: contact.notes,
+    });
+    setContactError(null);
+    setContactModalOpen(true);
+  };
+
   const statusChartData = DASHBOARD_STATUS_BUCKETS.map((stage) => ({
     stage,
     total: dashboard?.by_status[stage] ?? 0,
@@ -959,78 +1050,205 @@ export function App() {
           ) : null}
 
           {page === "Empresas" ? (
-            <>
-              <h1 className="text-xl font-semibold">Empresas</h1>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <section className="space-y-3">
-                  {customers.map((customer) => (
-                    <div key={customer.id} className="lf-card p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-slate-900">{customer.name}</p>
-                          <p className="text-sm text-slate-600">{customer.notes || "Sem observações"}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" onClick={() => { setEditingCustomer(customer); setCustomerPayload({ name: customer.name, notes: customer.notes }); }}>
-                            Editar
-                          </Button>
-                          <Button variant="secondary" onClick={async () => { await api.deleteCustomer(customer.id); await refresh(); }}>
-                            Excluir
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {(contactsByCustomer[customer.id] ?? []).map((contact) => (
-                          <div key={contact.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium">{contact.name}</p>
-                              <div className="flex gap-2">
-                                <button className="text-blue-600" onClick={() => { setEditingContact(contact); setContactPayload({ customer_id: contact.customer_id, name: contact.name, email: contact.email, phone: contact.phone, job_title: contact.job_title, notes: contact.notes }); }}>Editar</button>
-                                <button className="text-rose-600" onClick={async () => { await api.deleteContact(contact.id); await refresh(); }}>Excluir</button>
-                              </div>
-                            </div>
-                            <p className="text-slate-600">{[contact.job_title, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sem dados adicionais"}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3">
-                        <Button variant="secondary" onClick={() => { setEditingContact(null); setContactPayload({ customer_id: customer.id, name: "", email: "", phone: "", job_title: "", notes: "" }); }}>
-                          Novo contato
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-semibold">Empresas</h1>
+                  <p className="text-sm text-slate-600">Gestão operacional de contas, contatos e oportunidades.</p>
+                </div>
+                <Button onClick={openCreateCustomerModal}>
+                  <Plus size={16} />
+                  Nova empresa
+                </Button>
+              </div>
+
+              {crmFeedback ? (
+                <div
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    crmFeedback.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-rose-200 bg-rose-50 text-rose-900"
+                  }`}
+                >
+                  {crmFeedback.text}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+                <aside className="lf-card flex max-h-[70vh] flex-col p-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className="lf-input w-full pl-9"
+                      placeholder="Buscar empresa ou contato"
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                    />
+                  </div>
+                  <p className="mt-2 px-1 text-xs text-slate-500">{filteredCustomers.length} empresa(s)</p>
+
+                  <div className="mt-2 flex-1 space-y-2 overflow-y-auto pr-1">
+                    {filteredCustomers.length ? (
+                      filteredCustomers.map((customer) => {
+                        const isSelected = customer.id === selectedCustomerId;
+                        const contactsCount = (contactsByCustomer[customer.id] ?? []).length;
+                        return (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => setSelectedCustomerId(customer.id)}
+                            className={`w-full rounded-xl border p-3 text-left transition ${
+                              isSelected
+                                ? "border-blue-300 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            <p className="font-semibold text-slate-900">{customer.name}</p>
+                            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{customer.notes || "Sem observações"}</p>
+                            <p className="mt-2 text-xs text-slate-500">{contactsCount} contato(s)</p>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                        <p>Nenhuma empresa encontrada.</p>
+                        <Button className="mt-3" onClick={openCreateCustomerModal}>
+                          Criar primeira empresa
                         </Button>
                       </div>
-                    </div>
-                  ))}
-                </section>
-                <aside className="space-y-3">
-                  <div className="lf-card p-4">
-                    <p className="mb-2 text-sm font-semibold">{editingCustomer ? "Editar cliente" : "Novo cliente"}</p>
-                    <div className="space-y-2">
-                      <input className="lf-input" placeholder="Nome" value={customerPayload.name} onChange={(e) => setCustomerPayload((p) => ({ ...p, name: e.target.value }))} />
-                      <textarea className="lf-input min-h-20" placeholder="Observações" value={customerPayload.notes ?? ""} onChange={(e) => setCustomerPayload((p) => ({ ...p, notes: e.target.value }))} />
-                      <Button onClick={async () => { if (!customerPayload.name.trim()) return; if (editingCustomer) await api.updateCustomer(editingCustomer.id, customerPayload); else await api.createCustomer(customerPayload); setEditingCustomer(null); setCustomerPayload({ name: "", notes: "" }); await refresh(); }}>
-                        Salvar cliente
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="lf-card p-4">
-                    <p className="mb-2 text-sm font-semibold">{editingContact ? "Editar contato" : "Contato"}</p>
-                    <div className="space-y-2">
-                      <select className="lf-input" value={contactPayload.customer_id} onChange={(e) => setContactPayload((p) => ({ ...p, customer_id: Number(e.target.value) }))}>
-                        <option value={0}>Selecione o cliente</option>
-                        {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                      </select>
-                      <input className="lf-input" placeholder="Nome" value={contactPayload.name} onChange={(e) => setContactPayload((p) => ({ ...p, name: e.target.value }))} />
-                      <input className="lf-input" placeholder="E-mail" value={contactPayload.email ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, email: e.target.value }))} />
-                      <input className="lf-input" placeholder="Telefone" value={contactPayload.phone ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, phone: e.target.value }))} />
-                      <input className="lf-input" placeholder="Cargo" value={contactPayload.job_title ?? ""} onChange={(e) => setContactPayload((p) => ({ ...p, job_title: e.target.value }))} />
-                      <Button onClick={async () => { if (!contactPayload.customer_id || !contactPayload.name.trim()) return; if (editingContact) await api.updateContact(editingContact.id, contactPayload); else await api.createContact(contactPayload); setEditingContact(null); setContactPayload({ customer_id: 0, name: "", email: "", phone: "", job_title: "", notes: "" }); await refresh(); }}>
-                        Salvar contato
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 </aside>
+
+                <section className="lf-card max-h-[70vh] space-y-4 overflow-y-auto p-4">
+                  {selectedCustomer ? (
+                    <>
+                      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
+                        <div>
+                          <h2 className="text-lg font-semibold text-slate-900">{selectedCustomer.name}</h2>
+                          <p className="text-sm text-slate-500">Empresa selecionada</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="secondary" onClick={() => openEditCustomerModal(selectedCustomer)}>Editar</Button>
+                          <Button
+                            variant="danger"
+                            onClick={async () => {
+                              try {
+                                await api.deleteCustomer(selectedCustomer.id);
+                                setCrmFeedback({ type: "success", text: "Empresa excluída com sucesso." });
+                                await refresh();
+                              } catch (error) {
+                                setCrmFeedback({ type: "error", text: getErrorDetails(error, "Falha ao excluir empresa.") });
+                              }
+                            }}
+                          >
+                            Excluir
+                          </Button>
+                          <Button variant="outline" onClick={() => openCreateContactModal(selectedCustomer.id)}>
+                            Adicionar contato
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingLead(undefined);
+                              setModalOpen(true);
+                            }}
+                          >
+                            Criar oportunidade
+                          </Button>
+                        </div>
+                      </header>
+
+                      <section className="space-y-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Visão geral</h3>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-sm text-slate-700"><span className="font-medium text-slate-900">Empresa:</span> {selectedCustomer.name}</p>
+                          <p className="mt-2 text-sm text-slate-700"><span className="font-medium text-slate-900">Observações:</span> {selectedCustomer.notes || "Sem observações cadastradas."}</p>
+                        </div>
+                      </section>
+
+                      <section className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Contatos</h3>
+                          <Button variant="secondary" className="h-8" onClick={() => openCreateContactModal(selectedCustomer.id)}>
+                            Adicionar contato
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedCustomerContacts.length ? (
+                            selectedCustomerContacts.map((contact) => (
+                              <div key={contact.id} className="rounded-xl border border-slate-200 p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-medium text-slate-900">{contact.name}</p>
+                                    <p className="text-sm text-slate-600">
+                                      {[contact.job_title, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sem dados adicionais"}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="ghost" className="h-8" onClick={() => openEditContactModal(contact)}>Editar</Button>
+                                    <Button
+                                      variant="danger"
+                                      className="h-8"
+                                      onClick={async () => {
+                                        try {
+                                          await api.deleteContact(contact.id);
+                                          setCrmFeedback({ type: "success", text: "Contato excluído com sucesso." });
+                                          await refresh();
+                                        } catch (error) {
+                                          setCrmFeedback({ type: "error", text: getErrorDetails(error, "Falha ao excluir contato.") });
+                                        }
+                                      }}
+                                    >
+                                      Excluir
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
+                              Nenhum contato cadastrado para esta empresa.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="space-y-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Oportunidades</h3>
+                        <div className="space-y-2">
+                          {selectedCustomerOpportunities.length ? (
+                            selectedCustomerOpportunities.map((lead) => {
+                              const axes = deriveOpportunityAxes(lead.stage);
+                              return (
+                                <div key={lead.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="font-medium text-slate-900">{lead.contact_name || lead.company}</p>
+                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                                      {axes.status}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-slate-600">Etapa: {axes.etapa} · Resultado: {axes.resultado}</p>
+                                  <p className="mt-1 text-slate-500">Próximo follow-up: {lead.next_followup_at || "Não definido"}</p>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
+                              Nenhuma oportunidade vinculada.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    </>
+                  ) : (
+                    <div className="flex h-full min-h-56 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                      Selecione a empresa para visualizar detalhes, contatos e oportunidades.
+                    </div>
+                  )}
+                </section>
               </div>
-            </>
+            </section>
           ) : null}
 
           {page === "Leads Perdidos" ? (
@@ -1369,6 +1587,163 @@ export function App() {
           ) : null}
         </main>
       </div>
+
+      {customerModalOpen ? (
+        <div className="lf-modal-overlay" onMouseDown={() => setCustomerModalOpen(false)}>
+          <div className="lf-modal max-w-xl" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="lf-modal-header">
+              <h3 className="lf-modal-title">{editingCustomer ? "Editar empresa" : "Nova empresa"}</h3>
+              <button className="lf-modal-close" type="button" onClick={() => setCustomerModalOpen(false)} aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+            <div className="lf-modal-body space-y-3">
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                Nome da empresa
+                <input
+                  className="lf-input"
+                  placeholder="Ex.: ACME Corp"
+                  value={customerPayload.name}
+                  onChange={(event) => {
+                    setCustomerPayload((prev) => ({ ...prev, name: event.target.value }));
+                    setCustomerError(null);
+                  }}
+                />
+                {customerError ? <p className="error-text">{customerError}</p> : null}
+              </label>
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                Observações
+                <textarea
+                  className="lf-input min-h-24"
+                  placeholder="Contexto, responsáveis e pontos importantes"
+                  value={customerPayload.notes ?? ""}
+                  onChange={(event) => setCustomerPayload((prev) => ({ ...prev, notes: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="lf-modal-footer">
+              <Button variant="secondary" onClick={() => setCustomerModalOpen(false)}>Cancelar</Button>
+              <Button
+                onClick={async () => {
+                  if (!customerPayload.name.trim()) {
+                    setCustomerError("Informe o nome da empresa.");
+                    return;
+                  }
+
+                  try {
+                    if (editingCustomer) await api.updateCustomer(editingCustomer.id, customerPayload);
+                    else await api.createCustomer(customerPayload);
+
+                    setCustomerModalOpen(false);
+                    setEditingCustomer(null);
+                    setCustomerPayload({ name: "", notes: "" });
+                    setCrmFeedback({
+                      type: "success",
+                      text: editingCustomer ? "Empresa atualizada com sucesso." : "Empresa criada com sucesso.",
+                    });
+                    await refresh();
+                  } catch (error) {
+                    setCrmFeedback({ type: "error", text: getErrorDetails(error, "Falha ao salvar empresa.") });
+                  }
+                }}
+              >
+                Salvar empresa
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {contactModalOpen ? (
+        <div className="lf-modal-overlay" onMouseDown={() => setContactModalOpen(false)}>
+          <div className="lf-modal max-w-xl" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="lf-modal-header">
+              <h3 className="lf-modal-title">{editingContact ? "Editar contato" : "Novo contato"}</h3>
+              <button className="lf-modal-close" type="button" onClick={() => setContactModalOpen(false)} aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+            <div className="lf-modal-body space-y-3">
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                Empresa
+                <select
+                  className="lf-input"
+                  value={contactPayload.customer_id}
+                  onChange={(event) => {
+                    setContactPayload((prev) => ({ ...prev, customer_id: Number(event.target.value) }));
+                    setContactError(null);
+                  }}
+                >
+                  <option value={0}>Selecione a empresa</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>{customer.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                Nome do contato
+                <input
+                  className="lf-input"
+                  value={contactPayload.name}
+                  onChange={(event) => {
+                    setContactPayload((prev) => ({ ...prev, name: event.target.value }));
+                    setContactError(null);
+                  }}
+                />
+              </label>
+              {contactError ? <p className="error-text">{contactError}</p> : null}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium text-slate-600">
+                  E-mail
+                  <input className="lf-input" value={contactPayload.email ?? ""} onChange={(event) => setContactPayload((prev) => ({ ...prev, email: event.target.value }))} />
+                </label>
+                <label className="space-y-1 text-xs font-medium text-slate-600">
+                  Telefone
+                  <input className="lf-input" value={contactPayload.phone ?? ""} onChange={(event) => setContactPayload((prev) => ({ ...prev, phone: event.target.value }))} />
+                </label>
+              </div>
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                Cargo
+                <input className="lf-input" value={contactPayload.job_title ?? ""} onChange={(event) => setContactPayload((prev) => ({ ...prev, job_title: event.target.value }))} />
+              </label>
+            </div>
+            <div className="lf-modal-footer">
+              <Button variant="secondary" onClick={() => setContactModalOpen(false)}>Cancelar</Button>
+              <Button
+                onClick={async () => {
+                  if (!contactPayload.customer_id) {
+                    setContactError("Selecione a empresa.");
+                    return;
+                  }
+                  if (!contactPayload.name.trim()) {
+                    setContactError("Informe o nome do contato.");
+                    return;
+                  }
+
+                  try {
+                    if (editingContact) await api.updateContact(editingContact.id, contactPayload);
+                    else await api.createContact(contactPayload);
+
+                    setContactModalOpen(false);
+                    setEditingContact(null);
+                    setContactPayload({ customer_id: selectedCustomerId ?? 0, name: "", email: "", phone: "", job_title: "", notes: "" });
+                    setCrmFeedback({
+                      type: "success",
+                      text: editingContact ? "Contato atualizado com sucesso." : "Contato criado com sucesso.",
+                    });
+                    await refresh();
+                  } catch (error) {
+                    setCrmFeedback({ type: "error", text: getErrorDetails(error, "Falha ao salvar contato.") });
+                  }
+                }}
+              >
+                Salvar contato
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showFollowupToast && pendingFollowups.length > 0 ? (
         <div className="fixed bottom-5 right-5 z-40 max-w-sm rounded-lg border border-amber-300 bg-white p-3 shadow-xl">
           <p className="text-sm font-semibold text-slate-900">
