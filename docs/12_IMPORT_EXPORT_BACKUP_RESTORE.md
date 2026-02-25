@@ -15,6 +15,12 @@ Este documento detalha os fluxos de movimentação de dados que existem no proje
 - Encoding tratado como texto lido no frontend via `File.text()`.
 - Headers aceitam aliases normalizados sem acento e sem pontuação.
 
+### Template CSV na UI
+- Na tela de Leads existe o botão **Baixar modelo CSV**.
+- O download gera `leadflow_leads_template.csv` em UTF-8 (com BOM) e delimitador `;`.
+- Headers do template: `empresa;contato;cargo;email;telefone;interesse;status;criado_em;atualizado_em`.
+- Há também a opção **Baixar modelo CSV (com exemplo)** que adiciona uma linha preenchida para referência.
+
 ### Mapeamento de colunas
 Campos principais suportados por alias:
 - empresa, company, nomeempresa.
@@ -71,6 +77,7 @@ Como não há export semântico por entidade:
 
 ## Como usar
 - Para import CSV: selecionar arquivo na UI e revisar relatório.
+- Para obter modelo de planilha: Leads, clicar em **Baixar modelo CSV** (ou versão com exemplo).
 - Para backup: Settings, Criar Backup.
 - Para restore: Settings, Restaurar Backup, confirmar ação e reiniciar app.
 
