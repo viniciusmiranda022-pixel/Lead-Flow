@@ -1,5 +1,49 @@
-export const STAGES = ['Novo', 'Contatado', 'Apresentação', 'Ganho', 'Pausado', 'Perdido'] as const;
+export const OPPORTUNITY_STAGES = ['Novo', 'Contato', 'Apresentação', 'Proposta', 'Negociação'] as const;
+export type OpportunityStage = (typeof OPPORTUNITY_STAGES)[number];
+
+export const OPPORTUNITY_RESULTS = ['Em aberto', 'Ganha', 'Perdida'] as const;
+export type OpportunityResult = (typeof OPPORTUNITY_RESULTS)[number];
+
+export const OPPORTUNITY_STATES = ['Ativa', 'Pausada'] as const;
+export type OpportunityState = (typeof OPPORTUNITY_STATES)[number];
+
+export const STAGES = [...OPPORTUNITY_STAGES, 'Ganho', 'Pausado', 'Perdido', 'Contatado'] as const;
 export type Stage = (typeof STAGES)[number];
+
+export type OpportunityStatus = OpportunityStage | 'Ganha' | 'Perdida' | 'Pausada';
+
+export function deriveOpportunityAxes(stage: string | null | undefined): {
+  etapa: OpportunityStage;
+  resultado: OpportunityResult;
+  estado: OpportunityState;
+  status: OpportunityStatus;
+} {
+  const normalized = (stage ?? '').trim().toLowerCase();
+
+  if (normalized === 'ganho' || normalized === 'ganha') {
+    return { etapa: 'Negociação', resultado: 'Ganha', estado: 'Ativa', status: 'Ganha' };
+  }
+  if (normalized === 'perdido' || normalized === 'perdida') {
+    return { etapa: 'Negociação', resultado: 'Perdida', estado: 'Ativa', status: 'Perdida' };
+  }
+  if (normalized === 'pausado' || normalized === 'pausada') {
+    return { etapa: 'Contato', resultado: 'Em aberto', estado: 'Pausada', status: 'Pausada' };
+  }
+
+  const etapaMap: Record<string, OpportunityStage> = {
+    novo: 'Novo',
+    contato: 'Contato',
+    contatado: 'Contato',
+    apresentação: 'Apresentação',
+    apresentacao: 'Apresentação',
+    proposta: 'Proposta',
+    negociação: 'Negociação',
+    negociacao: 'Negociação',
+  };
+
+  const etapa = etapaMap[normalized] ?? 'Novo';
+  return { etapa, resultado: 'Em aberto', estado: 'Ativa', status: etapa };
+}
 
 export const PROJECT_STATUS_LABELS = {
   DISCOVERY: 'Discovery',

@@ -2,8 +2,10 @@ import type { ProjectStatus } from "../types";
 
 export type StageKey =
   | "Novo"
-  | "Contatado"
+  | "Contato"
   | "Apresentação"
+  | "Proposta"
+  | "Negociação"
   | "Ganho"
   | "Pausado"
   | "Perdido";
@@ -18,8 +20,10 @@ export type StageMeta = {
 
 export const STAGES: StageKey[] = [
   "Novo",
-  "Contatado",
+  "Contato",
   "Apresentação",
+  "Proposta",
+  "Negociação",
   "Ganho",
   "Pausado",
   "Perdido",
@@ -33,9 +37,9 @@ export const stageMeta: Record<StageKey, StageMeta> = {
     strong: "#2563EB",
     tint: "#EFF6FF",
   },
-  Contatado: {
-    key: "Contatado",
-    label: "Contatado",
+  Contato: {
+    key: "Contato",
+    label: "Contato",
     emoji: "📞",
     strong: "#F59E0B",
     tint: "#FFFBEB",
@@ -46,6 +50,20 @@ export const stageMeta: Record<StageKey, StageMeta> = {
     emoji: "🖥️",
     strong: "#10B981",
     tint: "#ECFDF5",
+  },
+  Proposta: {
+    key: "Proposta",
+    label: "Proposta",
+    emoji: "🧾",
+    strong: "#14B8A6",
+    tint: "#ECFEFF",
+  },
+  Negociação: {
+    key: "Negociação",
+    label: "Negociação",
+    emoji: "🤝",
+    strong: "#6366F1",
+    tint: "#EEF2FF",
   },
   Ganho: {
     key: "Ganho",
@@ -72,8 +90,10 @@ export const stageMeta: Record<StageKey, StageMeta> = {
 
 export const stageColorMap: Record<StageKey, string> = {
   Novo: "#2563EB",
-  Contatado: "#F59E0B",
+  Contato: "#F59E0B",
   Apresentação: "#10B981",
+  Proposta: "#14B8A6",
+  Negociação: "#6366F1",
   Ganho: "#059669",
   Pausado: "#64748B",
   Perdido: "#EF4444",
@@ -122,6 +142,8 @@ export function getStageKey(value: string | undefined | null): StageKey {
     lower === "apresentacao de portifolio feita"
   )
     return "Apresentação";
+  if (lower === 'contatado') return 'Contato';
+  if (lower === 'negociacao') return 'Negociação';
   return "Novo";
 }
 
