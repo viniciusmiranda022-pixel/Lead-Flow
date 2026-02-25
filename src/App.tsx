@@ -52,7 +52,6 @@ import {
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUSES,
-  STAGES,
   type Collaborator,
   type CollaboratorPayload,
   type DashboardData,
@@ -68,13 +67,17 @@ import {
   type Contact,
   type ContactPayload,
   type ImportResult,
+  deriveOpportunityAxes,
+  OPPORTUNITY_STAGES,
 } from "./types";
 
 const FOLLOWUP_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const DASHBOARD_STATUS_BUCKETS = [...OPPORTUNITY_STAGES, "Pausado", "Ganho", "Perdido"] as const;
+
 type Page =
   | "Dashboard"
-  | "Leads"
-  | "Clientes"
+  | "Funil"
+  | "Empresas"
   | "Leads Ganhos"
   | "Leads Perdidos"
   | "Projetos"
@@ -84,8 +87,8 @@ type Page =
 
 const menuItems: Array<{ label: Page; icon: typeof LayoutDashboard }> = [
   { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Leads", icon: Users },
-  { label: "Clientes", icon: BriefcaseBusiness },
+  { label: "Funil", icon: Users },
+  { label: "Empresas", icon: BriefcaseBusiness },
   { label: "Leads Ganhos", icon: UserRoundCheck },
   { label: "Leads Perdidos", icon: UserRoundX },
   { label: "Projetos", icon: FolderKanban },
@@ -248,9 +251,9 @@ export function App() {
   const filteredLeads = useMemo(() => {
     const normalizedSearch = filter.search.toLowerCase();
     return [...leads]
-      .filter((lead) => lead.stage !== "Perdido" && lead.stage !== "Ganho")
+      .filter((lead) => deriveOpportunityAxes(lead.stage).resultado === "Em aberto")
       .filter((lead) =>
-        filter.status === "Todos" ? true : lead.stage === filter.status,
+        filter.status === "Todos" ? true : deriveOpportunityAxes(lead.stage).status === filter.status,
       )
       .filter((lead) =>
         filter.interest === "Todos" ? true : lead.interest === filter.interest,
@@ -285,14 +288,14 @@ export function App() {
   const lostLeads = useMemo(
     () =>
       [...leads]
-        .filter((lead) => lead.stage === "Perdido")
+        .filter((lead) => deriveOpportunityAxes(lead.stage).resultado === "Perdida")
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads],
   );
   const wonLeads = useMemo(
     () =>
       [...leads]
-        .filter((lead) => lead.stage === "Ganho")
+        .filter((lead) => deriveOpportunityAxes(lead.stage).resultado === "Ganha")
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [leads],
   );
@@ -361,7 +364,7 @@ export function App() {
     await api.updateStage(lead.id, stage);
     await refresh();
   };
-  const statusChartData = STAGES.map((stage) => ({
+  const statusChartData = DASHBOARD_STATUS_BUCKETS.map((stage) => ({
     stage,
     total: dashboard?.by_status[stage] ?? 0,
     color: stageColorMap[stage],
@@ -639,15 +642,15 @@ export function App() {
                 <button
                   type="button"
                   className="text-left"
-                  onClick={() => setPage("Leads")}
+                  onClick={() => setPage("Funil")}
                 >
                   <StatCard
                     title="Total"
                     value={dashboard.total}
-                    subtitle="👥 Leads no funil"
+                    subtitle="👥 Oportunidades no funil"
                   />
                 </button>
-                {STAGES.map((stage) => (
+                {DASHBOARD_STATUS_BUCKETS.map((stage) => (
                   <button key={stage} type="button" className="text-left">
                     <StatCard
                       title={stage}
@@ -659,7 +662,7 @@ export function App() {
               </section>
               <section className="grid gap-4 xl:grid-cols-2">
                 <div className="lf-card p-4">
-                  <h2 className="mb-3 lf-section-title">Leads por Status</h2>
+                  <h2 className="mb-3 lf-section-title">Funil por Status</h2>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={statusChartData}>
@@ -857,10 +860,10 @@ export function App() {
             </section>
           ) : null}
 
-          {page === "Leads" ? (
+          {page === "Funil" ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
+                <h1 className="text-xl font-semibold text-slate-900">Funil de Oportunidades</h1>
                 <div className="flex gap-2">
                   <input
                     ref={fileInputRef}
@@ -955,9 +958,9 @@ export function App() {
             </>
           ) : null}
 
-          {page === "Clientes" ? (
+          {page === "Empresas" ? (
             <>
-              <h1 className="text-xl font-semibold">Clientes</h1>
+              <h1 className="text-xl font-semibold">Empresas</h1>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <section className="space-y-3">
                   {customers.map((customer) => (
@@ -1385,7 +1388,7 @@ export function App() {
             <Button
               className="h-8"
               onClick={() => {
-                setPage("Leads");
+                setPage("Funil");
                 setShowFollowupToast(false);
               }}
             >

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUSES,
-  STAGES,
+  OPPORTUNITY_STAGES,
   normalizeProjectStatus,
   type Lead,
   type Project,
@@ -178,7 +178,7 @@ export function LeadCard({ lead, projects, onEdit, onDelete, onUpdateStage, onCr
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {STAGES.map((stage) => {
+        {OPPORTUNITY_STAGES.map((stage) => {
           const activeMeta = getStageMeta(stage);
           const isActive = stage === lead.stage;
           return (
@@ -193,6 +193,11 @@ export function LeadCard({ lead, projects, onEdit, onDelete, onUpdateStage, onCr
             </Button>
           );
         })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button variant="ghost" className="h-8 rounded-full px-3 py-1 text-xs" onClick={() => onUpdateStage(lead, 'Pausado')}>Pausar</Button>
+        <Button variant="ghost" className="h-8 rounded-full px-3 py-1 text-xs" onClick={() => onUpdateStage(lead, 'Ganho')}>Marcar ganha</Button>
+        <Button variant="ghost" className="h-8 rounded-full px-3 py-1 text-xs" onClick={() => onUpdateStage(lead, 'Perdido')}>Marcar perdida</Button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="secondary" className="h-8" disabled={!hasEmail} onClick={handleOpenEmail}>
