@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, fs, path::PathBuf};
 
-const STAGES: [&str; 6] = [
+const STAGES: &[&str] = &[
     "Novo",
-    "Contatado",
+    "Contato",
     "Apresentação",
+    "Proposta",
+    "Negociação",
     "Ganho",
     "Pausado",
     "Perdido",
@@ -254,6 +256,7 @@ fn normalize_stage(stage: &str) -> String {
         "apresentação de portifolio feita" | "apresentacao de portifolio feita" => {
             "Apresentação".to_string()
         }
+        "contatado" => "Contato".to_string(),
         "ganho" | "ganha" | "convertido" | "convertida" | "won" => "Ganho".to_string(),
         _ => "Novo".to_string(),
     }
@@ -328,7 +331,7 @@ fn insert_lead_with_timestamps(
     updated_at: &str,
 ) -> Result<Lead, String> {
     let stage = normalize_stage(&payload.stage);
-    let last_contacted = if stage == "Contatado" {
+    let last_contacted = if stage == "Contato" {
         Some(updated_at.to_string())
     } else {
         None
@@ -640,7 +643,7 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     let now = now_iso();
     let mut last_contacted = current.last_contacted_at;
     let stage = normalize_stage(&payload.stage);
-    if stage == "Contatado" && current.stage != "Contatado" {
+    if stage == "Contato" && current.stage != "Contato" {
         last_contacted = Some(now.clone());
     }
 
@@ -666,7 +669,7 @@ fn update_stage(id: i64, stage: String) -> Result<Lead, String> {
     let current = get_lead(&conn, id)?;
     let now = now_iso();
     let mut last_contacted = current.last_contacted_at;
-    if stage == "Contatado" && current.stage != "Contatado" {
+    if stage == "Contato" && current.stage != "Contato" {
         last_contacted = Some(now.clone());
     }
     conn.execute(

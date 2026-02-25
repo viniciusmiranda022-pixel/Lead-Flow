@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COMPANY_SIZES, INDUSTRIES, INTERESTS, LATAM_COUNTRIES } from '../constants/options';
-import { STAGES } from '../types';
+import { OPPORTUNITY_STAGES } from '../types';
 import type { Lead, LeadPayload, Stage } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -304,7 +304,7 @@ export function LeadModal({ open, lead, onClose, onSave }: Props) {
                 className="lf-input lf-focusable"
                 required
                 value={payload.stage}
-                options={STAGES.map((s) => ({ label: s, value: s }))}
+                options={[...OPPORTUNITY_STAGES, 'Pausado', 'Ganho', 'Perdido'].map((s) => ({ label: s, value: s }))}
                 onChange={(e) => set('stage', e.target.value)}
               />
               {errors.stage ? <p className="error-text">{errors.stage}</p> : null}
