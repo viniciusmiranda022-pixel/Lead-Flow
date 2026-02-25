@@ -50,6 +50,7 @@ struct Lead {
     city: String,
     company_size: String,
     industry: String,
+    segment_other: String,
     interest: String,
     stage: String,
     notes: String,
@@ -74,6 +75,7 @@ pub(crate) struct LeadPayload {
     city: String,
     company_size: String,
     industry: String,
+    segment_other: String,
     interest: String,
     stage: String,
     notes: String,
@@ -338,9 +340,9 @@ fn insert_lead_with_timestamps(
     };
 
     conn.execute(
-        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, created_at, updated_at, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
+        "INSERT INTO leads (company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, segment_other, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.segment_other.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, created_at, updated_at, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())],
     )
     .map_err(|e| e.to_string())?;
 
@@ -421,6 +423,7 @@ fn init_db(conn: &Connection) -> Result<(), String> {
             city TEXT,
             company_size TEXT,
             industry TEXT,
+            segment_other TEXT,
             interest TEXT,
             stage TEXT NOT NULL,
             notes TEXT,
@@ -465,6 +468,7 @@ fn init_db(conn: &Connection) -> Result<(), String> {
     ensure_column(conn, "leads", "state", "TEXT")?;
     ensure_column(conn, "leads", "city", "TEXT")?;
     ensure_column(conn, "leads", "rating", "INTEGER")?;
+    ensure_column(conn, "leads", "segment_other", "TEXT")?;
     ensure_column(conn, "projects", "valor_bruto_negociado", "REAL DEFAULT 0")?;
     ensure_column(conn, "projects", "valor_bruto_licencas", "REAL DEFAULT 0")?;
     ensure_column(
@@ -549,14 +553,15 @@ fn row_to_lead(row: &rusqlite::Row) -> rusqlite::Result<Lead> {
         city: text(10)?,
         company_size: text(11)?,
         industry: text(12)?,
-        interest: text(13)?,
-        stage: text(14)?,
-        notes: text(15)?,
-        rating: row.get(16)?,
-        created_at: text(17)?,
-        updated_at: text(18)?,
-        last_contacted_at: row.get(19)?,
-        next_followup_at: row.get(20)?,
+        segment_other: text(13)?,
+        interest: text(14)?,
+        stage: text(15)?,
+        notes: text(16)?,
+        rating: row.get(17)?,
+        created_at: text(18)?,
+        updated_at: text(19)?,
+        last_contacted_at: row.get(20)?,
+        next_followup_at: row.get(21)?,
     })
 }
 
@@ -610,7 +615,7 @@ fn row_to_collaborator(row: &rusqlite::Row) -> rusqlite::Result<Collaborator> {
 #[tauri::command]
 fn list_leads() -> Result<Vec<Lead>, String> {
     let conn = open_db()?;
-    let mut stmt = conn.prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, segment_other, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], row_to_lead)
         .map_err(|e| e.to_string())?
@@ -621,7 +626,7 @@ fn list_leads() -> Result<Vec<Lead>, String> {
 
 fn get_lead(conn: &Connection, id: i64) -> Result<Lead, String> {
     conn.query_row(
-        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
+        "SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, segment_other, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads WHERE id = ?",
         [id],
         row_to_lead,
     )
@@ -648,8 +653,8 @@ fn update_lead(id: i64, payload: LeadPayload) -> Result<Lead, String> {
     }
 
     conn.execute(
-        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, interest=?13, stage=?14, notes=?15, rating=?16, updated_at=?17, last_contacted_at=?18, next_followup_at=?19 WHERE id=?20",
-        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
+        "UPDATE leads SET company=?1, contact_name=?2, job_title=?3, email=?4, phone=?5, linkedin=?6, location=?7, country=?8, state=?9, city=?10, company_size=?11, industry=?12, segment_other=?13, interest=?14, stage=?15, notes=?16, rating=?17, updated_at=?18, last_contacted_at=?19, next_followup_at=?20 WHERE id=?21",
+        params![payload.company.trim(), payload.contact_name.trim(), payload.job_title.trim(), payload.email.trim(), payload.phone.trim(), payload.linkedin.trim(), payload.location.trim(), payload.country.trim(), payload.state.trim(), payload.city.trim(), payload.company_size.trim(), payload.industry.trim(), payload.segment_other.trim(), payload.interest.trim(), stage, payload.notes.trim(), payload.rating, now, last_contacted, payload.next_followup_at.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()), id],
     ).map_err(|e| e.to_string())?;
 
     get_lead(&conn, id)
@@ -906,7 +911,7 @@ fn get_dashboard_data() -> Result<DashboardData, String> {
         .map_err(|e| e.to_string())?;
 
     let mut latest_stmt = conn
-        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
+        .prepare("SELECT id, company, contact_name, job_title, email, phone, linkedin, location, country, state, city, company_size, industry, segment_other, interest, stage, notes, rating, created_at, updated_at, last_contacted_at, next_followup_at FROM leads ORDER BY updated_at DESC LIMIT 10")
         .map_err(|e| e.to_string())?;
     let latest = latest_stmt
         .query_map([], row_to_lead)
@@ -1012,6 +1017,7 @@ mod tests {
             city: String::new(),
             company_size: String::new(),
             industry: String::new(),
+            segment_other: String::new(),
             interest: String::new(),
             stage: "Novo".into(),
             notes: String::new(),
