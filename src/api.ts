@@ -87,17 +87,69 @@ const invokeWithDiagnostics = async <T>(command: string, args?: Record<string, u
   }
 };
 
-const unsupportedFeatureError = (command: string, feature: string) => {
-  throw new ApiInvokeError(
-    command,
-    `Recurso indisponível: ${feature}. Atualize o backend para habilitar este fluxo.`,
-    'COMMAND_UNAVAILABLE',
-  );
+type CompanyGroup = {
+  id: number;
+  name: string;
+  notes: string;
+  leads: Lead[];
+};
+
+const normalizeCompanyKey = (company: string) => company.trim().toLowerCase();
+
+const buildLeadPayload = (base: Lead, patches: Partial<LeadPayload>): LeadPayload => ({
+  company: base.company,
+  contact_name: base.contact_name,
+  job_title: base.job_title,
+  email: base.email,
+  phone: base.phone,
+  linkedin: base.linkedin,
+  location: base.location,
+  country: base.country,
+  state: base.state,
+  city: base.city,
+  company_size: base.company_size,
+  industry: base.industry,
+  interest: base.interest,
+  stage: base.stage,
+  notes: base.notes,
+  rating: base.rating,
+  next_followup_at: base.next_followup_at ?? '',
+  ...patches,
+});
+
+const listLeadRows = () => invokeWithDiagnostics<Lead[]>('list_leads');
+
+const listCompanyGroups = async (): Promise<CompanyGroup[]> => {
+  const leads = await listLeadRows();
+  const byCompany = new Map<string, Lead[]>();
+  leads.forEach((lead) => {
+    const key = normalizeCompanyKey(lead.company || 'Sem empresa');
+    byCompany.set(key, [...(byCompany.get(key) ?? []), lead]);
+  });
+
+  return Array.from(byCompany.values())
+    .map((rows) => {
+      const ordered = [...rows].sort((a, b) => a.id - b.id);
+      const primary = ordered[0];
+      return {
+        id: primary.id,
+        name: primary.company || 'Sem empresa',
+        notes: primary.notes || '',
+        leads: ordered,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const getLeadById = async (id: number) => {
+  const lead = (await listLeadRows()).find((row) => row.id === id);
+  if (!lead) throw new ApiInvokeError('update_contact', 'Contato não encontrado.', 'CONTACT_NOT_FOUND');
+  return lead;
 };
 
 export const api = {
   getDashboard: () => invokeWithDiagnostics<DashboardData>('get_dashboard_data'),
-  listLeads: () => invokeWithDiagnostics<Lead[]>('list_leads'),
+  listLeads: listLeadRows,
   createLead: (payload: LeadPayload) => invokeWithDiagnostics<Lead>('create_lead', { payload }),
   updateLead: (id: number, payload: LeadPayload) => invokeWithDiagnostics<Lead>('update_lead', { id, payload }),
   deleteLead: (id: number) => invokeWithDiagnostics<void>('delete_lead', { id }),
@@ -112,18 +164,133 @@ export const api = {
   createCollaborator: (payload: CollaboratorPayload) => invokeWithDiagnostics<Collaborator>('create_collaborator', { payload }),
   updateCollaborator: (id: number, payload: CollaboratorPayload) => invokeWithDiagnostics<Collaborator>('update_collaborator', { id, payload }),
   deleteCollaborator: (id: number) => invokeWithDiagnostics<void>('delete_collaborator', { id }),
-  listCustomers: () => unsupportedFeatureError('list_customers', 'customers'),
-  createCustomer: (_payload: CustomerPayload) => unsupportedFeatureError('create_customer', 'customers'),
-  updateCustomer: (_id: number, _payload: CustomerPayload) => unsupportedFeatureError('update_customer', 'customers'),
-  deleteCustomer: (_id: number) => unsupportedFeatureError('delete_customer', 'customers'),
-  listContactsByCustomer: (_customerId: number) => unsupportedFeatureError('list_contacts_by_customer', 'contacts'),
-  createContact: (_payload: ContactPayload) => unsupportedFeatureError('create_contact', 'contacts'),
-  updateContact: (_id: number, _payload: ContactPayload) => unsupportedFeatureError('update_contact', 'contacts'),
-  deleteContact: (_id: number) => unsupportedFeatureError('delete_contact', 'contacts'),
+  listCustomers: async () => {
+    const groups = await listCompanyGroups();
+    return groups.map((group) => {
+      const first = group.leads[0];
+      return { id: group.id, name: group.name, notes: group.notes, created_at: first.created_at, updated_at: first.updated_at };
+    });
+  },
+  createCustomer: async (payload: CustomerPayload) => {
+    const leadPayload: LeadPayload = {
+      company: payload.name.trim(),
+      contact_name: 'Contato principal',
+      job_title: '',
+      email: `contato+${Date.now()}@empresa.local`,
+      phone: '+55 11 99999-0000',
+      linkedin: '',
+      location: '',
+      country: '',
+      state: '',
+      city: '',
+      company_size: '',
+      industry: '',
+      interest: 'Novo negócio',
+      stage: 'Novo',
+      notes: payload.notes?.trim() ?? '',
+      next_followup_at: '',
+      rating: null,
+    };
+    const lead = await invokeWithDiagnostics<Lead>('create_lead', { payload: leadPayload });
+    return { id: lead.id, name: lead.company, notes: lead.notes, created_at: lead.created_at, updated_at: lead.updated_at };
+  },
+  updateCustomer: async (id: number, payload: CustomerPayload) => {
+    const groups = await listCompanyGroups();
+    const group = groups.find((item) => item.id === id);
+    if (!group) throw new ApiInvokeError('update_customer', 'Empresa não encontrada.', 'CUSTOMER_NOT_FOUND');
+
+    await Promise.all(
+      group.leads.map((lead) => invokeWithDiagnostics<Lead>('update_lead', {
+        id: lead.id,
+        payload: buildLeadPayload(lead, { company: payload.name.trim(), notes: payload.notes?.trim() ?? '' }),
+      })),
+    );
+
+    return { id, name: payload.name.trim(), notes: payload.notes ?? '', created_at: group.leads[0].created_at, updated_at: new Date().toISOString() };
+  },
+  deleteCustomer: async (id: number) => {
+    const groups = await listCompanyGroups();
+    const group = groups.find((item) => item.id === id);
+    if (!group) return;
+    await Promise.all(group.leads.map((lead) => invokeWithDiagnostics<void>('delete_lead', { id: lead.id })));
+  },
+  listContactsByCustomer: async (customerId: number) => {
+    const groups = await listCompanyGroups();
+    const group = groups.find((item) => item.id === customerId);
+    if (!group) return [];
+
+    return group.leads.map((lead) => ({
+      id: lead.id,
+      customer_id: customerId,
+      name: lead.contact_name,
+      email: lead.email,
+      phone: lead.phone,
+      linkedin: lead.linkedin,
+      job_title: lead.job_title,
+      notes: lead.notes,
+      created_at: lead.created_at,
+      updated_at: lead.updated_at,
+    }));
+  },
+  createContact: async (payload: ContactPayload) => {
+    const groups = await listCompanyGroups();
+    const group = groups.find((item) => item.id === payload.customer_id);
+    if (!group) throw new ApiInvokeError('create_contact', 'Empresa não encontrada.', 'CUSTOMER_NOT_FOUND');
+    const sample = group.leads[0];
+    const leadPayload = buildLeadPayload(sample, {
+      contact_name: payload.name.trim(),
+      email: payload.email?.trim() || `contato+${Date.now()}@empresa.local`,
+      phone: payload.phone?.trim() || '+55 11 99999-0000',
+      linkedin: payload.linkedin?.trim() || '',
+      job_title: payload.job_title?.trim() || '',
+      notes: payload.notes?.trim() || sample.notes,
+      stage: 'Novo',
+    });
+    const lead = await invokeWithDiagnostics<Lead>('create_lead', { payload: leadPayload });
+    return {
+      id: lead.id,
+      customer_id: payload.customer_id,
+      name: lead.contact_name,
+      email: lead.email,
+      phone: lead.phone,
+      linkedin: lead.linkedin,
+      job_title: lead.job_title,
+      notes: lead.notes,
+      created_at: lead.created_at,
+      updated_at: lead.updated_at,
+    };
+  },
+  updateContact: async (id: number, payload: ContactPayload) => {
+    const current = await getLeadById(id);
+    const lead = await invokeWithDiagnostics<Lead>('update_lead', {
+      id,
+      payload: buildLeadPayload(current, {
+        contact_name: payload.name.trim(),
+        email: payload.email?.trim() || current.email,
+        phone: payload.phone?.trim() || current.phone,
+        linkedin: payload.linkedin?.trim() || '',
+        job_title: payload.job_title?.trim() || '',
+        notes: payload.notes?.trim() || current.notes,
+      }),
+    });
+    return {
+      id: lead.id,
+      customer_id: payload.customer_id,
+      name: lead.contact_name,
+      email: lead.email,
+      phone: lead.phone,
+      linkedin: lead.linkedin,
+      job_title: lead.job_title,
+      notes: lead.notes,
+      created_at: lead.created_at,
+      updated_at: lead.updated_at,
+    };
+  },
+  deleteContact: (id: number) => invokeWithDiagnostics<void>('delete_lead', { id }),
   importLegacyDb: () => invokeWithDiagnostics<boolean>('import_legacy_db'),
   importCsv: (csvContent: string) => invokeWithDiagnostics<ImportResult>('import_csv', { csvContent }),
   backupDatabase: (destinationPath: string) => invokeWithDiagnostics<string>('backup_database', { destinationPath }),
-  restoreDatabase: (backupPath: string) => invokeWithDiagnostics<RestoreDatabaseResult>('restore_database', { backupPath })
+  restoreDatabase: (backupPath: string) => invokeWithDiagnostics<RestoreDatabaseResult>('restore_database', { backupPath }),
 };
 
 export const __apiTestables = { parseBackendError };
