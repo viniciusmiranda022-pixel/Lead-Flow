@@ -78,6 +78,45 @@ fn sanitize_log_value(path: &str, value: &Value, depth: usize) -> Value {
     }
 }
 
+fn has_leading_tag(message: &str) -> bool {
+    if !message.starts_with('[') {
+        return false;
+    }
+
+    let Some(close_idx) = message.find("] ") else {
+        return false;
+    };
+
+    if close_idx < 2 {
+        return false;
+    }
+
+    message[1..close_idx]
+        .chars()
+        .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+}
+
+fn default_command_tag(command: &str) -> String {
+    let normalized = command
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    format!("CMD_{}_FAILED", normalized)
+}
+
+fn ensure_tagged_error(command: &str, message: String) -> String {
+    if has_leading_tag(&message) {
+        return message;
+    }
+
+    format!("[{}] {}", default_command_tag(command), message)
+}
 pub fn build_payload_summary(pairs: &[(&str, Value)]) -> String {
     let mut payload = serde_json::Map::new();
     for (key, value) in pairs {
@@ -128,8 +167,9 @@ where
         }
         Err(err) => {
             let elapsed_ms = (Local::now() - started_at).num_milliseconds();
-            log_command_error(command, elapsed_ms, &err);
-            Err(err)
+            let tagged_err = ensure_tagged_error(command, err);
+            log_command_error(command, elapsed_ms, &tagged_err);
+            Err(tagged_err)
         }
     }
 }

@@ -1134,6 +1134,28 @@ BadEmail,invalido,(11)99999-9999,Caio,Novo,01/12/2024 10:10,01/12/2024 10:10
     }
 
     #[test]
+    fn run_command_keeps_existing_tag_without_prefixing() {
+        let result: Result<(), String> = crate::logging::run_command("import_csv", "{}", || {
+            Err("[IMPORT_PARSE_FAILED] CSV inválido".to_string())
+        });
+
+        let message = result.expect_err("expected tagged error");
+        assert_eq!(message, "[IMPORT_PARSE_FAILED] CSV inválido");
+    }
+
+    #[test]
+    fn run_command_injects_default_tag_at_message_start() {
+        let result: Result<(), String> =
+            crate::logging::run_command("backup_database", "{}", || {
+                Err("Falha ao criar backup".to_string())
+            });
+
+        let message = result.expect_err("expected tagged error");
+        assert!(message.starts_with("[CMD_BACKUP_DATABASE_FAILED] "));
+        assert!(message.contains("Falha ao criar backup"));
+    }
+
+    #[test]
     fn payload_summary_redacts_nested_sensitive_keys() {
         let summary = crate::logging::build_payload_summary(&[(
             "payload",

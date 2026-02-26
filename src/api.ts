@@ -19,7 +19,12 @@ export class ApiInvokeError extends Error {
 }
 
 const BACKEND_TAG_PATTERN = /^\[([A-Z0-9_]+)\]\s(.*)$/;
-const BACKEND_TAG_ANYWHERE_PREFIX = /^(.*?)(\[[A-Z0-9_]+\]\s.*)$/;
+const TRUSTED_RUNTIME_PREFIXES = [
+  'InvokeError: ',
+  'Error: ',
+  'Command error: ',
+  'Error invoking command: ',
+] as const;
 
 const parseBackendError = (raw: string) => {
   const strictMatch = raw.match(BACKEND_TAG_PATTERN);
@@ -32,21 +37,19 @@ const parseBackendError = (raw: string) => {
   }
 
   const first80 = raw.slice(0, 80);
-  const anywhereMatch = first80.match(BACKEND_TAG_ANYWHERE_PREFIX);
-  if (anywhereMatch) {
-    const [, prefix, taggedPart] = anywhereMatch;
-    const lowered = prefix.toLowerCase();
-    const hasSafePrefixHint = ['error', 'erro', 'tauri', 'invoke', 'invocation', 'failed'].some((token) => lowered.includes(token));
+  for (const prefix of TRUSTED_RUNTIME_PREFIXES) {
+    if (!first80.startsWith(prefix)) {
+      continue;
+    }
 
-    if (hasSafePrefixHint) {
-      const nested = taggedPart.match(BACKEND_TAG_PATTERN);
-      if (nested) {
-        const [, tag, message] = nested;
-        return {
-          tag,
-          friendlyMessage: message?.trim() || 'Falha ao executar comando no backend.',
-        };
-      }
+    const taggedPart = first80.slice(prefix.length);
+    const nested = taggedPart.match(BACKEND_TAG_PATTERN);
+    if (nested) {
+      const [, tag, message] = nested;
+      return {
+        tag,
+        friendlyMessage: message?.trim() || 'Falha ao executar comando no backend.',
+      };
     }
   }
 
